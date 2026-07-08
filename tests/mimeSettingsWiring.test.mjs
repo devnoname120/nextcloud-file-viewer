@@ -61,6 +61,13 @@ test('admin settings UI uses official Nextcloud Vue settings components', async 
   assert.match(adminScript, /@nextcloud\/vue\/dist\/Components\/NcTextField\.js/);
   assert.match(adminScript, /@nextcloud\/vue\/dist\/Components\/NcSelect\.js/);
   assert.match(adminScript, /import '\.\/adminSettings\.css';/);
+  assert.match(adminScript, /createMimeGroups/);
+  assert.match(adminScript, /filterMimeGroups/);
+  assert.match(adminScript, /flattenMimeGroups/);
+  assert.match(adminScript, /MIMES_BY_EXTENSION/);
+  assert.match(adminScript, /fileviewer-mime-group/);
+  assert.match(adminStyles, /\.fileviewer-mime-group/);
+  assert.match(adminStyles, /\.fileviewer-mime-group-header/);
   assert.match(adminStyles, /\.fileviewer-settings-actions/);
   assert.match(adminStyles, /display:\s*flex/);
   assert.match(adminStyles, /gap:/);

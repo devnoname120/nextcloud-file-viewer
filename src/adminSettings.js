@@ -20,7 +20,15 @@ import {
 	createAdminMimeSettings,
 	normalizeDisabledMimes,
 } from './mimeSettings.js';
-import { SUPPORTED_MIMES } from './supportedFormats.generated.js';
+import {
+	createMimeGroups,
+	filterMimeGroups,
+	flattenMimeGroups,
+} from './formatGroups.js';
+import {
+	MIMES_BY_EXTENSION,
+	SUPPORTED_MIMES,
+} from './supportedFormats.generated.js';
 
 const root = document.getElementById('fileviewer-admin-settings');
 
@@ -58,13 +66,14 @@ const AdminSettingsApp = {
 		isCustomBasemap() {
 			return this.isCustomRasterBasemap || this.isCustomVectorBasemap;
 		},
+		mimeGroups() {
+			return createMimeGroups(this.mimeSettings.supportedMimes, MIMES_BY_EXTENSION);
+		},
+		filteredMimeGroups() {
+			return filterMimeGroups(this.mimeGroups, this.mimeFilter);
+		},
 		filteredMimes() {
-			const filter = this.mimeFilter.trim().toLowerCase();
-			if (filter === '') {
-				return this.mimeSettings.supportedMimes;
-			}
-
-			return this.mimeSettings.supportedMimes.filter(mime => mime.toLowerCase().includes(filter));
+			return flattenMimeGroups(this.filteredMimeGroups);
 		},
 		enabledMimeCount() {
 			return this.mimeSettings.supportedMimes.length - this.mimeSettings.disabledMimes.length;
@@ -331,6 +340,32 @@ const AdminSettingsApp = {
 				]),
 			]);
 		},
+		renderMimeGroup(h, mimeGroup) {
+			const headingId = `fileviewer-mime-group-${mimeGroup.id}-heading`;
+			const mimeCount = `${mimeGroup.mimes.length} MIME ${mimeGroup.mimes.length === 1 ? 'type' : 'types'}`;
+
+			return h('section', {
+				class: 'fileviewer-mime-group',
+				attrs: {
+					'aria-labelledby': headingId,
+					'data-fileviewer-mime-group': mimeGroup.id,
+				},
+			}, [
+				h('div', { class: 'fileviewer-mime-group-header' }, [
+					h('div', { class: 'fileviewer-mime-group-heading' }, [
+						h('h3', {
+							class: 'fileviewer-mime-group-title',
+							attrs: {
+								id: headingId,
+							},
+						}, mimeGroup.label),
+						h('p', { class: 'fileviewer-mime-group-extensions' }, mimeGroup.extensionText),
+					]),
+					h('span', { class: 'fileviewer-mime-group-count' }, mimeCount),
+				]),
+				h('div', { class: 'fileviewer-mime-list' }, mimeGroup.mimes.map(mime => this.renderMimeRow(h, mime))),
+			]);
+		},
 		renderMimeSettings(h) {
 			return h(NcSettingsSection, {
 				props: {
@@ -351,10 +386,10 @@ const AdminSettingsApp = {
 				}, [
 					h(NcTextField, {
 						props: {
-							label: 'Filter MIME types',
+							label: 'Filter file types',
 							type: 'search',
 							value: this.mimeFilter,
-							placeholder: 'application/pdf, text/markdown, image/...',
+							placeholder: 'PDF, dwg, application/pdf, text/markdown, image/...',
 						},
 						attrs: {
 							id: 'fileviewer-mime-filter',
@@ -399,11 +434,15 @@ const AdminSettingsApp = {
 						}, this.mimeMessage),
 					]),
 					h('div', {
-						class: 'fileviewer-mime-list',
+						class: 'fileviewer-mime-groups',
 						attrs: {
 							id: 'fileviewer-mime-settings-list',
 						},
-					}, this.filteredMimes.map(mime => this.renderMimeRow(h, mime))),
+					}, this.filteredMimeGroups.length > 0
+						? this.filteredMimeGroups.map(mimeGroup => this.renderMimeGroup(h, mimeGroup))
+						: [
+							h('p', { class: 'fileviewer-mime-empty' }, 'No MIME types match this filter.'),
+						]),
 					]),
 				]);
 			},

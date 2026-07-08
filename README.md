@@ -10,6 +10,43 @@ for most file types. EPUB previews add `allow-same-origin` automatically because
 EPUB.js renders chapters in a nested iframe and must read that child document to
 finish layout.
 
+## Supported Formats
+
+This table mirrors the first two columns of the upstream Flyfish File Viewer
+[supported formats](https://github.com/flyfish-dev/file-viewer/blob/main/README.en.md#supported-formats)
+matrix.
+
+| Category | Extensions |
+| --- | --- |
+| Word | `docx`, `docm`, `dotx`, `dotm` |
+| Legacy Word | `doc`, `dot` |
+| Compatible documents | `rtf`, `odt` |
+| Excel | `xlsx`, `xltx` |
+| Excel-compatible | `xlsm`, `xlsb`, `xls`, `xlt`, `xltm`, `csv`, `ods`, `fods`, `numbers` |
+| PowerPoint | `pptx`, `pptm`, `potx`, `potm`, `ppsx`, `ppsm`, `odp` |
+| PDF | `pdf` |
+| OFD | `ofd` |
+| Typst | `typ`, `typst` |
+| Archives | `zip`, `zipx`, `7z`, `rar`, `tar`, `gz`, `tgz`, `bz2`, `xz`, `zst`, `cab`, `iso`, `jar`, `apk`, `cbz`, `cbr`, and more |
+| Email | `eml`, `msg`, `mbox` |
+| EDA | `olb`, `dra`, `gds`, `oas`, `oasis` |
+| CAD | `dwg`, `dxf`, `dwf`, `dwfx`, `xps` |
+| Geospatial data | `geojson`, `kml`, `gpx`, `shp` |
+| 3D models | `glb`, `gltf`, `obj`, `stl`, `ply`, `fbx`, `dae`, `3ds`, `3mf`, `amf`, `usd`, `usda`, `usdc`, `usdz`, `kmz`, `pcd`, `wrl`, `vrml`, `xyz`, `vtk`, `vtp`, `step`, `stp`, `iges`, `igs`, `ifc`, `3dm` |
+| XMind mind maps | `xmind` |
+| Excalidraw | `excalidraw` |
+| draw.io | `drawio`, `dio` |
+| Mermaid | `mermaid`, `mmd` |
+| PlantUML | `plantuml`, `puml` |
+| EPUB | `epub` |
+| UMD ebook | `umd` |
+| Markdown | `md`, `markdown` |
+| Images | `gif`, `jpg`, `jpeg`, `bmp`, `tiff`, `tif`, `png`, `svg`, `webp`, `avif`, `ico`, `heic`, `heif`, `jxl` |
+| Source and text | `txt`, `json`, `jsonc`, `json5`, `ipynb`, `js`, `mjs`, `cjs`, `css`, `java`, `py`, `html`, `htm`, `jsx`, `ts`, `tsx`, `xml`, `log`, `vue`, `yaml`, `yml`, `toml`, `ini`, `proto`, `hcl`, `tex`, `gv`, `http`, `sh`, `bash`, `sql`, `go`, `rs`, `rb`, `swift`, `kt`, `react`, `php`, `c`, `cpp`, `cc`, `h`, `hpp`, `cs`, `diff`, `patch`, `bundle`, `bdl` |
+| Audio | `mp3`, `mpeg`, `wav`, `ogg`, `oga`, `opus`, `m4a`, `aac`, `flac`, `weba`, `midi`, `mid` |
+| Video | `mp4`, `webm`, `m3u8` |
+| Fonts, design assets, and data | `ttf`, `otf`, `woff`, `woff2`, `psd`, `ai`, `eps`, `sqlite`, `wasm`, `parquet`, `avro`, `webarchive` |
+
 ## Build
 
 ```bash
