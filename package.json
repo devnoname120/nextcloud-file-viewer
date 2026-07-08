@@ -1,0 +1,50 @@
+{
+  "name": "nextcloud-file-viewer",
+  "description": "Nextcloud app that previews files with Flyfish File Viewer",
+  "version": "0.1.0",
+  "author": "devnoname120",
+  "license": "AGPL-3.0-or-later",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "test:browser:iframe": "playwright test tests/e2e/iframe-smoke.spec.mjs --browser=chromium",
+    "test:browser:examples": "playwright test tests/e2e/upstream-examples.spec.mjs --browser=chromium",
+    "test:e2e:nextcloud": "playwright test tests/e2e/nextcloud-smoke.spec.mjs --browser=chromium",
+    "test:e2e:nextcloud:samples": "playwright test tests/e2e/nextcloud-samples.spec.mjs --browser=chromium",
+    "generate:formats": "node scripts/generate-supported-formats.mjs",
+    "copy:admin-styles": "node scripts/copy-admin-styles.mjs",
+    "copy:viewer-assets": "node scripts/copy-viewer-assets.mjs",
+    "build": "npm run generate:formats && vite --mode production build && npm run copy:admin-styles && npm run copy:viewer-assets",
+    "dev": "npm run generate:formats && vite --mode development build && npm run copy:admin-styles && npm run copy:viewer-assets",
+    "watch": "npm run generate:formats && vite --mode development build --watch"
+  },
+  "engines": {
+    "node": "^20.0.0",
+    "npm": "^10.0.0"
+  },
+  "dependencies": {
+    "@file-viewer/core": "^2.1.23",
+    "@file-viewer/web-full": "^2.1.23",
+    "@nextcloud/initial-state": "^3.0.0",
+    "@nextcloud/router": "^3.1.0",
+    "@nextcloud/viewer": "^1.0.0",
+    "@nextcloud/vue": "^8.39.0",
+    "mime-types": "^3.0.2",
+    "vue": "^2.7.16"
+  },
+  "devDependencies": {
+    "@nextcloud/browserslist-config": "^3.1.2",
+    "@playwright/test": "^1.61.1",
+    "@types/mime-types": "^3.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  },
+  "browserslist": [
+    "extends @nextcloud/browserslist-config"
+  ],
+  "overrides": {
+    "@xmldom/xmldom": "^0.9.10",
+    "minimatch": "^10.2.1"
+  }
+}

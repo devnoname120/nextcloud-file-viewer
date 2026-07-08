@@ -1,0 +1,10 @@
+/node_modules/
+/build/
+/js/
+/playwright-report/
+/test-results/
+/viewer/file-viewer/
+/public/file-viewer/
+/vendor/
+/composer.lock
+/nextcloud-server/

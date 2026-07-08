@@ -1,0 +1,44 @@
+{
+  "name": "devnoname120/nextcloud-file-viewer",
+  "description": "Preview files in Nextcloud with Flyfish File Viewer",
+  "type": "project",
+  "license": "AGPL-3.0-or-later",
+  "autoload": {
+    "psr-4": {
+      "OCA\\FileViewer\\": "lib/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "OC\\": "nextcloud-server/lib/private",
+      "OC\\Core\\": "nextcloud-server/core/",
+      "OCP\\": "nextcloud-server/lib/public"
+    },
+    "classmap": [
+      "nextcloud-server/lib/private/legacy/"
+    ],
+    "exclude-from-classmap": ["**/bamarni/composer-bin-plugin/**"],
+    "files": [
+      "nextcloud-server/lib/public/Log/functions.php"
+    ]
+  },
+  "authors": [
+    {
+      "name": "Paul",
+      "email": "devnoname120@gmail.com"
+    }
+  ],
+  "scripts": {
+    "lint": "find . -name \\*.php -not -path './vendor/*' -not -path './nextcloud-server/*' -print0 | xargs -0 -n1 php -l"
+  },
+  "config": {
+    "autoloader-suffix": "FileViewer",
+    "platform": {
+      "php": "8.2"
+    }
+  },
+  "require": {
+    "php": ">=8.2 <=8.5"
+  },
+  "require-dev": {}
+}

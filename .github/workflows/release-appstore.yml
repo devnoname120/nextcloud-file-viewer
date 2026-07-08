@@ -1,0 +1,67 @@
+name: Release appstore
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release-appstore:
+    name: Build and publish appstore release
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@ec406be512d7077f68eed36e63f4d91bc006edc4 # 2.35.4
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Build release artifact
+        run: make dist
+
+      - name: Resolve tarball metadata
+        id: tarball
+        run: |
+          set -eu
+          set -- build/artifacts/fileviewer-*.tar.gz
+          if [ "$1" = "build/artifacts/fileviewer-*.tar.gz" ] || [ "$#" -ne 1 ]; then
+            echo "Expected exactly one built tarball for fileviewer, got $#"
+            exit 1
+          fi
+          artifact="$1"
+          asset_name="$(basename "$artifact")"
+          download_url="https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/${asset_name}"
+          {
+            echo "path=${artifact}"
+            echo "asset_name=${asset_name}"
+            echo "download_url=${download_url}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload tarball to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.tarball.outputs.path }}" --clobber
+
+      - name: Push to Nextcloud appstore
+        uses: R0Wi/nextcloud-appstore-push-action@ad2020a77eb694e8fe145d2ebd6bc21c246240fd # v1.0.5
+        with:
+          app_name: fileviewer
+          appstore_token: ${{ secrets.NC_APPSTORE_TOKEN }}
+          download_url: ${{ steps.tarball.outputs.download_url }}
+          app_private_key: ${{ secrets.NC_APP_PRIVATE_KEY }}
+          nightly: ${{ github.event.release.prerelease }}

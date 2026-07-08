@@ -1,0 +1,11 @@
+.fileviewer-settings-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--default-grid-baseline) calc(var(--default-grid-baseline) * 2);
+	margin-block: var(--default-grid-baseline);
+}
+
+.fileviewer-settings-actions > .button-vue {
+	flex: 0 0 auto;
+}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>fileviewer</id>
+    <name>File Viewer</name>
+    <summary>Preview documents, archives, media, CAD files, and other formats with Flyfish File Viewer</summary>
+    <description><![CDATA[
+# File Viewer
+
+File Viewer integrates the browser-native Flyfish File Viewer renderer with the Nextcloud Viewer app.
+It registers supported file formats with Nextcloud Viewer and renders each file inside a sandboxed iframe.
+
+The parent Nextcloud page fetches the selected file using the normal authenticated Viewer URL, then sends
+the file Blob to the sandboxed viewer frame. By default the frame allows scripts but does not allow
+same-origin access, keeping rendered content in an opaque origin where browser support permits it.
+EPUB previews add same-origin access for the viewer frame because EPUB.js renders chapters in a nested
+iframe and must read that child document to complete layout.
+    ]]></description>
+    <version>0.1.0</version>
+    <licence>agpl</licence>
+    <author homepage="https://github.com/devnoname120">devnoname120</author>
+    <namespace>FileViewer</namespace>
+    <category>files</category>
+    <category>multimedia</category>
+    <category>office</category>
+    <website>https://github.com/devnoname120/nextcloud-file-viewer</website>
+    <bugs>https://github.com/devnoname120/nextcloud-file-viewer/issues</bugs>
+	    <settings>
+	        <admin>OCA\FileViewer\Settings\AdminSettings</admin>
+	        <admin-section>OCA\FileViewer\Settings\AdminSection</admin-section>
+	    </settings>
+    <dependencies>
+        <php min-version="8.2" max-version="8.5" />
+        <nextcloud min-version="34" max-version="35" />
+    </dependencies>
+</info>
