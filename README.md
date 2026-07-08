@@ -1,7 +1,7 @@
 # File Viewer
 
-File Viewer is a Nextcloud app that registers Flyfish File Viewer as a handler for
-the file types supported by Flyfish.
+File Viewer is a Nextcloud app that registers [Flyfish File Viewer](https://github.com/flyfish-dev/file-viewer) as a handler for
+the 200+ file types supported by Flyfish.
 
 The app renders files in a sandboxed iframe. The parent Nextcloud Viewer component
 fetches the selected file with the authenticated Viewer URL and posts the file Blob
@@ -12,7 +12,7 @@ finish layout.
 
 ## Supported Formats
 
-This table mirrors the first two columns of the upstream Flyfish File Viewer
+File Viewer uses [Flyfish Viewer](https://github.com/flyfish-dev/file-viewer) and thus supports 200+ formats:
 [supported formats](https://github.com/flyfish-dev/file-viewer/blob/main/README.en.md#supported-formats)
 matrix.
 
