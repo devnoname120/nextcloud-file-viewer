@@ -4,6 +4,22 @@ import http from 'node:http';
 import path from 'node:path';
 
 export const DEFAULT_FRAME_SANDBOX = 'allow-scripts allow-downloads allow-forms allow-modals allow-popups allow-presentation';
+export function createViewerDocumentCsp(origin) {
+  return [
+    "default-src 'none'",
+    "base-uri 'none'",
+    `script-src 'self' ${origin} 'unsafe-eval' 'wasm-unsafe-eval'`,
+    `style-src 'self' ${origin} 'unsafe-inline' blob:`,
+    `img-src 'self' ${origin} data: blob: https://tiles.openfreemap.org https://tile.openstreetmap.org`,
+    `font-src 'self' ${origin} data: blob: https://tiles.openfreemap.org https://tile.openstreetmap.org`,
+    `connect-src 'self' ${origin} data: blob: https://tiles.openfreemap.org https://tile.openstreetmap.org`,
+    `media-src 'self' ${origin} data: blob:`,
+    `frame-src 'self' ${origin} blob:`,
+    `frame-ancestors 'self' ${origin}`,
+    'worker-src blob:',
+    `form-action 'self' ${origin}`,
+  ].join('; ');
+}
 
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -59,6 +75,9 @@ export async function startStaticServer(rootDir) {
         headers['Access-Control-Allow-Origin'] = '*';
         headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
       }
+      if (url.pathname === '/viewer/index.html') {
+        headers['Content-Security-Policy'] = createViewerDocumentCsp(`http://${request.headers.host}`);
+      }
 
       response.writeHead(200, headers);
       createReadStream(filePath).pipe(response);
@@ -99,6 +118,35 @@ export async function waitForViewerMessage(page, channel, type, timeout = 30000)
   );
 }
 
+export function waitForNextWorkerInfo(page, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      page.off('worker', onWorker);
+      reject(new Error('Timed out waiting for an isolated parser worker.'));
+    }, timeout);
+
+    async function onWorker(worker) {
+      page.off('worker', onWorker);
+      clearTimeout(timer);
+      const url = worker.url();
+      try {
+        resolve({
+          url,
+          origin: await worker.evaluate(() => self.origin),
+        });
+      } catch (error) {
+        if (/^blob:null\//.test(url)) {
+          resolve({ url, origin: 'null' });
+          return;
+        }
+        reject(error);
+      }
+    }
+
+    page.on('worker', onWorker);
+  });
+}
+
 export async function mountSandboxedFrame(page, server, channel, options = {}) {
   const assetBase = `${server.origin}/apps/fileviewer/assets/`;
   const frameSandbox = options.sandbox || DEFAULT_FRAME_SANDBOX;
@@ -110,81 +158,57 @@ export async function mountSandboxedFrame(page, server, channel, options = {}) {
         <script>
           window.__fileViewerMessages = [];
           window.__fileViewerWorkers = new Map();
+          window.__fileViewerPort = null;
+          window.__fileViewerFrameWindow = null;
+          window.__fileViewerConnectionSequence = 0;
+          window.__fileViewerHandshakeErrors = 0;
+          const expectedChannel = ${JSON.stringify(channel)};
+          const handlePortMessage = event => {
+            window.__fileViewerMessages.push(event.data);
+          };
+
           window.addEventListener('message', event => {
             window.__fileViewerMessages.push(event.data);
             const data = event.data;
             const iframe = document.getElementById('viewer-frame');
-            if (!iframe || event.source !== iframe.contentWindow || !data || data.channel !== ${JSON.stringify(channel)}) {
+            if (
+              !iframe
+              || event.source !== iframe.contentWindow
+              || !data
+              || data.channel !== expectedChannel
+            ) {
               return;
             }
 
-            const assetBase = new URL(${JSON.stringify(assetBase)}, window.location.href).href;
-            const postToFrame = (type, workerId, payload = {}) => {
-              iframe.contentWindow.postMessage({
-                type,
-                channel: ${JSON.stringify(channel)},
-                workerId,
-                ...payload,
-              }, '*');
-            };
-            const normalizeWorkerOptions = options => {
-              const normalized = {};
-              if (options && (options.type === 'module' || options.type === 'classic')) {
-                normalized.type = options.type;
-              }
-              if (options && typeof options.name === 'string') {
-                normalized.name = options.name;
-              }
-              if (options && ['omit', 'same-origin', 'include'].includes(options.credentials)) {
-                normalized.credentials = options.credentials;
-              }
-              return normalized;
-            };
-
-            if (data.type === 'nextcloud-file-viewer:worker:create') {
-              try {
-                const workerUrl = new URL(data.url, window.location.href).href;
-                if (!workerUrl.startsWith(assetBase)) {
-                  throw new Error('Rejected worker URL outside asset base');
+            if (window.__fileViewerPort) {
+              if (event.source === window.__fileViewerFrameWindow) {
+                for (const port of event.ports) {
+                  port.close();
                 }
-                const worker = new Worker(workerUrl, normalizeWorkerOptions(data.options));
-                window.__fileViewerWorkers.set(data.workerId, worker);
-                worker.addEventListener('message', workerEvent => {
-                  postToFrame('nextcloud-file-viewer:worker:message', data.workerId, {
-                    message: workerEvent.data,
-                  });
-                });
-                worker.addEventListener('error', workerEvent => {
-                  postToFrame('nextcloud-file-viewer:worker:error', data.workerId, {
-                    message: workerEvent.message || 'Worker error',
-                    filename: workerEvent.filename || '',
-                    lineno: workerEvent.lineno || 0,
-                    colno: workerEvent.colno || 0,
-                  });
-                });
-                worker.addEventListener('messageerror', () => {
-                  postToFrame('nextcloud-file-viewer:worker:messageerror', data.workerId, {
-                    message: 'Worker message could not be cloned.',
-                  });
-                });
-              } catch (error) {
-                postToFrame('nextcloud-file-viewer:worker:error', data.workerId || '', {
-                  message: error && error.message ? error.message : String(error),
-                });
+                return;
               }
+              window.__fileViewerPort.removeEventListener('message', handlePortMessage);
+              window.__fileViewerPort.close();
+              window.__fileViewerPort = null;
+            }
+
+            if (data.type !== 'nextcloud-file-viewer:ready') {
+              return;
+            }
+            if (event.ports.length !== 1) {
+              window.__fileViewerHandshakeErrors += 1;
               return;
             }
 
-            const worker = window.__fileViewerWorkers.get(data.workerId);
-            if (!worker) {
-              return;
-            }
-            if (data.type === 'nextcloud-file-viewer:worker:post') {
-              worker.postMessage(data.message);
-            } else if (data.type === 'nextcloud-file-viewer:worker:terminate') {
-              worker.terminate();
-              window.__fileViewerWorkers.delete(data.workerId);
-            }
+            window.__fileViewerPort = event.ports[0];
+            window.__fileViewerFrameWindow = event.source;
+            window.__fileViewerConnectionSequence += 1;
+            window.__fileViewerPort.addEventListener('message', handlePortMessage);
+            window.__fileViewerPort.start();
+            window.__fileViewerPort.postMessage({
+              type: 'nextcloud-file-viewer:connected',
+              channel: expectedChannel,
+            });
           });
         </script>
         <iframe
@@ -202,14 +226,43 @@ export async function mountSandboxedFrame(page, server, channel, options = {}) {
   if (!frame) {
     throw new Error(`Viewer iframe for channel ${channel} was not found`);
   }
-  await Promise.any([
-    waitForViewerMessage(page, channel, 'nextcloud-file-viewer:ready'),
-    frame.waitForLoadState('load'),
-  ]);
+  await waitForViewerMessage(page, channel, 'nextcloud-file-viewer:ready');
+  await page.waitForFunction(() => Boolean(window.__fileViewerPort));
   await frame.waitForFunction(() => (
     document.readyState === 'complete'
     && Boolean(window.FlyfishFileViewerWebFull)
     && Boolean(document.querySelector('flyfish-file-viewer'))
+  ));
+  return frame;
+}
+
+export async function replaceSandboxedFrame(page, server, channel, sandbox) {
+  const assetBase = `${server.origin}/apps/fileviewer/assets/`;
+  const previousSequence = await page.evaluate(() => window.__fileViewerConnectionSequence);
+  await page.evaluate(({ expectedChannel, nextSandbox, nextAssetBase }) => {
+    const current = document.getElementById('viewer-frame');
+    const replacement = document.createElement('iframe');
+    replacement.id = 'viewer-frame';
+    replacement.setAttribute('sandbox', nextSandbox);
+    replacement.setAttribute('credentialless', '');
+    replacement.setAttribute('referrerpolicy', 'no-referrer');
+    replacement.setAttribute('allow', 'fullscreen');
+    replacement.src = `/viewer/index.html?channel=${encodeURIComponent(expectedChannel)}&assetBase=${encodeURIComponent(nextAssetBase)}`;
+    current.replaceWith(replacement);
+  }, {
+    expectedChannel: channel,
+    nextSandbox: sandbox,
+    nextAssetBase: assetBase,
+  });
+
+  await page.waitForFunction(expected => window.__fileViewerConnectionSequence > expected, previousSequence);
+  const frame = page.frames().find(candidate => candidate.url().includes(`/viewer/index.html?channel=${channel}`));
+  if (!frame) {
+    throw new Error(`Replacement viewer iframe for channel ${channel} was not found`);
+  }
+  await frame.waitForFunction(() => (
+    document.readyState === 'complete'
+    && Boolean(window.FlyfishFileViewerWebFull)
   ));
   return frame;
 }
@@ -220,21 +273,20 @@ export async function loadFileIntoSandbox(page, channel, sample, timeout = 30000
     : sample;
   const messageOffset = await page.evaluate(() => window.__fileViewerMessages.length);
   await page.evaluate(({ expectedChannel, fileSample }) => {
-    const iframe = document.getElementById('viewer-frame');
     const body = fileSample.bytesBase64
       ? Uint8Array.from(atob(fileSample.bytesBase64), character => character.charCodeAt(0))
       : fileSample.bytes
       ? new Uint8Array(fileSample.bytes)
       : fileSample.text;
     const blob = new Blob([body], { type: fileSample.mime });
-    iframe.contentWindow.postMessage({
+    window.__fileViewerPort.postMessage({
       type: 'nextcloud-file-viewer:load',
       channel: expectedChannel,
       file: blob,
       filename: fileSample.filename,
       mime: fileSample.mime,
       size: blob.size,
-    }, '*');
+    });
   }, { expectedChannel: channel, fileSample: normalizedSample });
 
   await page.waitForFunction(
@@ -507,9 +559,9 @@ export function createMinimalDocxBuffer(text) {
   ]);
 }
 
-export function createMinimalXlsxBuffer(text) {
+export function createMinimalXlsxBuffer(text, paddingSize = 0) {
   const escapedText = escapeXml(text);
-  return createZipBuffer([
+  const files = [
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -539,7 +591,11 @@ export function createMinimalXlsxBuffer(text) {
     </row>
   </sheetData>
 </worksheet>`],
-  ]);
+  ];
+  if (paddingSize > 0) {
+    files.push(['xl/file-viewer-padding.bin', Buffer.alloc(paddingSize, 0x5a)]);
+  }
+  return createZipBuffer(files);
 }
 
 function createMinimalPptxSlideXml(text) {
@@ -738,6 +794,61 @@ body {
   padding-left: 1rem;
 }
 `],
+  ]);
+}
+
+export function createScriptedEpubBuffer(title, text) {
+  return createZipBuffer([
+    ['mimetype', 'application/epub+zip'],
+    ['META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`],
+    ['OEBPS/content.opf', `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="book-id">urn:uuid:fileviewer-scripted-security-smoke</dc:identifier>
+    <dc:title>${escapeXml(title)}</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>`],
+    ['OEBPS/nav.xhtml', `<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Security probe chapter</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>`],
+    ['OEBPS/chapter.xhtml', `<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>${escapeXml(title)}</title>
+    <script type="text/javascript"><![CDATA[
+      try { parent.__fileViewerEpubSecurityProbe.push('script'); } catch (error) {}
+      try { top.__fileViewerEpubSecurityProbe.push('script'); } catch (error) {}
+    ]]></script>
+  </head>
+  <body onload="try { parent.__fileViewerEpubSecurityProbe.push('body-onload'); } catch (error) {}; try { top.__fileViewerEpubSecurityProbe.push('body-onload'); } catch (error) {}">
+    <h1>${escapeXml(title)}</h1>
+    <p>${escapeXml(text)}</p>
+    <img src="missing-security-probe.png" alt="" onerror="try { parent.__fileViewerEpubSecurityProbe.push('image-onerror'); } catch (error) {}; try { top.__fileViewerEpubSecurityProbe.push('image-onerror'); } catch (error) {}"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" onload="try { parent.__fileViewerEpubSecurityProbe.push('svg-onload'); } catch (error) {}; try { top.__fileViewerEpubSecurityProbe.push('svg-onload'); } catch (error) {}">
+      <title>SVG security probe</title>
+    </svg>
+  </body>
+</html>`],
   ]);
 }
 

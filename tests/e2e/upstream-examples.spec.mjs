@@ -12,6 +12,7 @@ import {
   mountSandboxedFrame,
   startStaticServer,
   waitForDeepMatch,
+  waitForNextWorkerInfo,
   waitForVisibleDeepText,
 } from './helpers.mjs';
 
@@ -266,6 +267,9 @@ test.describe('upstream Flyfish viewer examples', () => {
           ? `${DEFAULT_FRAME_SANDBOX} allow-same-origin`
           : DEFAULT_FRAME_SANDBOX,
       });
+      const workerInfoPromise = exampleCase.name === 'CAD DWG'
+        ? waitForNextWorkerInfo(page, 90000)
+        : null;
 
       await loadFileIntoSandbox(page, channel, await createFileSampleFromPath(filePath, {
         filename: exampleCase.filename,
@@ -280,6 +284,13 @@ test.describe('upstream Flyfish viewer examples', () => {
           await frame.waitForTimeout(exampleCase.forbiddenTextStableMs);
         }
         expect(await collectDeepText(frame)).not.toContain(exampleCase.forbiddenText);
+      }
+      if (workerInfoPromise) {
+        const workerInfo = await workerInfoPromise;
+        expect(workerInfo.url).toMatch(/^blob:null\//);
+        expect(workerInfo.origin).toBe('null');
+        expect(await page.evaluate(() => window.__fileViewerWorkers.size)).toBe(0);
+        expect(await collectDeepText(frame)).not.toContain('DWG worker failed');
       }
     });
   }

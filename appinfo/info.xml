@@ -11,11 +11,12 @@ File Viewer is a Nextcloud app that registers [Flyfish File Viewer](https://gith
 the 200+ file types supported by Flyfish.
 
 The app renders files in a sandboxed iframe. The parent Nextcloud Viewer component
-fetches the selected file with the authenticated Viewer URL and posts the file Blob
-to the iframe. The default sandbox intentionally does not include `allow-same-origin`
-for most file types. EPUB previews add `allow-same-origin` automatically because
-EPUB.js renders chapters in a nested iframe and must read that child document to
-finish layout.
+fetches the selected file with the authenticated Viewer URL and transfers the file
+Blob over a document-bound `MessageChannel`. The default sandbox intentionally does
+not include `allow-same-origin` for most file types. The outer EPUB viewer adds
+`allow-same-origin` because EPUB.js must read its nested chapter iframe to finish
+layout. EPUB chapter content remains inside that nested iframe, which allows its
+origin but deliberately does not allow scripts.
 
 ## Supported Formats
 
@@ -62,8 +63,31 @@ The default sandbox is:
 allow-scripts allow-downloads allow-forms allow-modals allow-popups allow-presentation
 ```
 
-For `.epub` files the app adds `allow-same-origin` to that sandbox at runtime.
-Other file types keep the configured sandbox unchanged.
+For `.epub` files the app adds `allow-same-origin` to the outer viewer sandbox at
+runtime. Because the outer viewer URL is served by Nextcloud, its document is then
+same-origin with the parent Nextcloud page. Flyfish and EPUB.js render the untrusted
+chapter content in a second, nested iframe whose sandbox contains
+`allow-same-origin` but not `allow-scripts`. Chapter scripts and event handlers
+therefore cannot run. The browser test suite checks this invariant with a scripted
+EPUB; Flyfish and EPUB.js upgrades should be treated as security-sensitive changes.
+Other file types keep the configured outer sandbox unchanged. Switching across the
+EPUB boundary closes the old channel, rotates its token, and replaces the iframe so
+the browser applies the new origin policy to a fresh document.
+
+Parser workers do not run in the parent Nextcloud page. For PDF, DOCX-family,
+PPTX-family, DWG, and spreadsheet files of at least 1 MiB, the frame fetches the
+exact configured bundled worker without credentials, creates a frame-owned `blob:`
+URL, and starts the worker from inside the sandbox. Under the default sandbox these
+workers have the opaque `null` origin. Libarchive formats use the same frame-owned
+`blob:` isolation model. Smaller spreadsheet files parse on the iframe's main
+thread, which is also sandboxed.
+
+The only default-page CSP addition is `frame-src 'self'`, and it is added only to
+responses that dispatch Nextcloud's Viewer-loading event. The app does not add
+instance-wide worker, connection, blob, WebAssembly-eval, style, image, font, or
+media allowances. The iframe response has its own scoped CSP for its local assets,
+frame-owned `blob:` workers, renderer-required evaluation and WebAssembly, and the
+configured geospatial tile origin.
 
 If a deployment needs to trade isolation for compatibility with specific browser
 worker or WASM behavior, administrators can override it:

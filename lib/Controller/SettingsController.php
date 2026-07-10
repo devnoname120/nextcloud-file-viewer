@@ -12,6 +12,10 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
+/**
+ * Settings actions rely on AppFramework's defaults, which require
+ * authentication, administrator privileges, and CSRF validation.
+ */
 class SettingsController extends Controller {
 	public function __construct(
 		IRequest $request,
@@ -21,9 +25,6 @@ class SettingsController extends Controller {
 		parent::__construct(Application::APP_ID, $request);
 	}
 
-	/**
-	 * @AdminRequired
-	 */
 	public function saveGeo(): DataResponse {
 		try {
 			$settings = $this->geoSettings->saveSettings($this->request->getParams());
@@ -39,9 +40,6 @@ class SettingsController extends Controller {
 		]);
 	}
 
-	/**
-	 * @AdminRequired
-	 */
 	public function saveMimes(): DataResponse {
 		try {
 			$settings = $this->mimeSettings->saveSettings($this->request->getParams());

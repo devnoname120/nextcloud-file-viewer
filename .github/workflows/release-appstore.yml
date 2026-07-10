@@ -10,7 +10,7 @@ permissions:
 jobs:
   release-appstore:
     name: Build and publish appstore release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: release
     steps:
       - name: Checkout release tag
@@ -22,7 +22,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 24
+          node-version: 24.18.0
           cache: npm
 
       - name: Set up PHP
@@ -44,7 +44,10 @@ jobs:
           fi
 
       - name: Build release artifact
-        run: make dist
+        run: |
+          make npm-deps
+          ./node_modules/.bin/playwright install --with-deps chromium
+          make dist
 
       - name: Resolve tarball metadata
         id: tarball
@@ -64,10 +67,27 @@ jobs:
             echo "download_url=${download_url}"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Upload tarball to GitHub release
+      - name: Upload or verify tarball on GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.tarball.outputs.path }}" --clobber
+        run: |
+          set -eu
+          artifact="${{ steps.tarball.outputs.path }}"
+          asset_name="${{ steps.tarball.outputs.asset_name }}"
+          existing_dir="$(mktemp -d)"
+          trap 'rm -rf "$existing_dir"' EXIT
+          python3 scripts/compare-release-archives.py "$artifact" "$artifact"
+          release_asset_names="$(gh release view "${{ github.event.release.tag_name }}" --json assets --jq '.assets[].name')"
+          if printf '%s\n' "$release_asset_names" | grep -Fqx "$asset_name"; then
+            gh release download "${{ github.event.release.tag_name }}" --pattern "$asset_name" --dir "$existing_dir"
+            if ! python3 scripts/compare-release-archives.py "$artifact" "$existing_dir/$asset_name"; then
+              echo "Release asset $asset_name already exists with different contents"
+              exit 1
+            fi
+            echo "Release asset $asset_name already exists with identical contents"
+          else
+            gh release upload "${{ github.event.release.tag_name }}" "$artifact"
+          fi
 
       - name: Push to Nextcloud appstore
         uses: R0Wi/nextcloud-appstore-push-action@ad2020a77eb694e8fe145d2ebd6bc21c246240fd # v1.0.5

@@ -7,6 +7,7 @@ namespace OCA\FileViewer\Listener;
 use OCA\FileViewer\AppInfo\Application;
 use OCA\FileViewer\Service\GeoSettings;
 use OCA\FileViewer\Service\MimeSettings;
+use OCA\FileViewer\Service\ViewerCspScope;
 use OCP\AppFramework\Services\IAppConfig;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\EventDispatcher\Event;
@@ -24,18 +25,23 @@ class LoadViewerListener implements IEventListener {
 		private IAppConfig $config,
 		private GeoSettings $geoSettings,
 		private MimeSettings $mimeSettings,
+		private ViewerCspScope $viewerCspScope,
 	) {
 	}
 
 	public function handle(Event $event): void {
-		/** @var \OCA\Viewer\Event\LoadViewer $event */
+		if (!$event instanceof \OCA\Viewer\Event\LoadViewer) {
+			return;
+		}
+
+		$this->viewerCspScope->markViewerLoaded();
 		$this->initialState->provideInitialState(
 			'sandbox',
 			$this->config->getAppValueString('sandbox', self::DEFAULT_SANDBOX)
-			);
-			$this->initialState->provideInitialState('geo', $this->geoSettings->getViewerGeoOptions());
-			$this->initialState->provideInitialState('disabledMimes', $this->mimeSettings->getDisabledMimes());
+		);
+		$this->initialState->provideInitialState('geo', $this->geoSettings->getViewerGeoOptions());
+		$this->initialState->provideInitialState('disabledMimes', $this->mimeSettings->getDisabledMimes());
 
-			Util::addInitScript(Application::APP_ID, 'fileviewer-main');
-		}
+		Util::addInitScript(Application::APP_ID, 'fileviewer-main');
+	}
 }

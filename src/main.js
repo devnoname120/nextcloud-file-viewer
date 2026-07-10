@@ -1,19 +1,14 @@
 import { loadState } from '@nextcloud/initial-state';
-import { generateFilePath, generateUrl } from '@nextcloud/router';
+import { generateUrl } from '@nextcloud/router';
 
 import {
 	APP_ID,
   DEFAULT_SANDBOX,
   FRAME_CLOSE_REQUEST_MESSAGE,
+  FRAME_CONNECTED_MESSAGE,
   FRAME_ERROR_MESSAGE,
   FRAME_LOADED_MESSAGE,
   FRAME_READY_MESSAGE,
-  FRAME_WORKER_CREATE_MESSAGE,
-  FRAME_WORKER_ERROR_MESSAGE,
-  FRAME_WORKER_MESSAGE_ERROR_MESSAGE,
-  FRAME_WORKER_MESSAGE_MESSAGE,
-  FRAME_WORKER_POST_MESSAGE,
-  FRAME_WORKER_TERMINATE_MESSAGE,
   createChannel,
   createFrameLoadMessage,
   isFrameMessage,
@@ -27,115 +22,12 @@ import { resolveFileExtension, resolveFileSource, resolveFilename } from './sour
 import { SUPPORTED_MIMES } from './supportedFormats.generated.js';
 import { installViewerHandlerPromotion } from './viewerHandlerOrder.js';
 
-const viewerFramePath = generateFilePath(APP_ID, '', 'viewer/index.html');
+const viewerFramePath = generateUrl('/apps/{APP_ID}/viewer/frame', { APP_ID });
 const viewerAssetBasePath = generateUrl('/apps/{APP_ID}/assets/', { APP_ID });
 const sandbox = loadState(APP_ID, 'sandbox', DEFAULT_SANDBOX);
 const geo = loadState(APP_ID, 'geo', createViewerGeoOptions());
 const enabledMimes = filterEnabledMimes(SUPPORTED_MIMES, loadState(APP_ID, 'disabledMimes', []));
 const publicShareFilename = loadState('files_sharing', 'filename', '');
-
-const workerRequestMessages = new Set([
-  FRAME_WORKER_CREATE_MESSAGE,
-  FRAME_WORKER_POST_MESSAGE,
-  FRAME_WORKER_TERMINATE_MESSAGE,
-]);
-
-function createFrameWorkerBridge({ frame, channel, assetBaseUrl }) {
-  const workers = new Map();
-  const assetBase = new URL(assetBaseUrl, window.location.href);
-
-  function postToFrame(type, workerId, payload = {}) {
-    frame.contentWindow?.postMessage({
-      type,
-      channel,
-      workerId,
-      ...payload,
-    }, '*');
-  }
-
-  function isAllowedWorkerUrl(url) {
-    try {
-      const parsed = new URL(url, window.location.href);
-      return parsed.href.startsWith(assetBase.href);
-    } catch {
-      return false;
-    }
-  }
-
-  function normalizeWorkerOptions(options) {
-    const normalized = {};
-    if (options?.type === 'module' || options?.type === 'classic') {
-      normalized.type = options.type;
-    }
-    if (options?.credentials === 'omit' || options?.credentials === 'same-origin' || options?.credentials === 'include') {
-      normalized.credentials = options.credentials;
-    }
-    if (typeof options?.name === 'string') {
-      normalized.name = options.name;
-    }
-    return normalized;
-  }
-
-  function createWorker(data) {
-    if (!data.workerId || typeof data.url !== 'string' || !isAllowedWorkerUrl(data.url)) {
-      throw new Error('Rejected sandbox worker request for an untrusted asset URL.');
-    }
-
-    const worker = new Worker(new URL(data.url, window.location.href).href, normalizeWorkerOptions(data.options));
-    workers.set(data.workerId, worker);
-
-    worker.addEventListener('message', event => {
-      postToFrame(FRAME_WORKER_MESSAGE_MESSAGE, data.workerId, {
-        message: event.data,
-      });
-    });
-    worker.addEventListener('error', event => {
-      postToFrame(FRAME_WORKER_ERROR_MESSAGE, data.workerId, {
-        message: event.message || 'Worker error',
-        filename: event.filename || '',
-        lineno: event.lineno || 0,
-        colno: event.colno || 0,
-      });
-    });
-    worker.addEventListener('messageerror', () => {
-      postToFrame(FRAME_WORKER_MESSAGE_ERROR_MESSAGE, data.workerId, {
-        message: 'Worker message could not be cloned.',
-      });
-    });
-  }
-
-  return {
-    handle(data) {
-      try {
-        if (data.type === FRAME_WORKER_CREATE_MESSAGE) {
-          createWorker(data);
-          return;
-        }
-
-        const worker = workers.get(data.workerId);
-        if (!worker) {
-          return;
-        }
-
-        if (data.type === FRAME_WORKER_POST_MESSAGE) {
-          worker.postMessage(data.message);
-          return;
-        }
-
-        if (data.type === FRAME_WORKER_TERMINATE_MESSAGE) {
-          worker.terminate();
-          workers.delete(data.workerId);
-        }
-      } catch (reason) {
-        postToFrame(FRAME_WORKER_ERROR_MESSAGE, data.workerId || '', serializeError(reason));
-      }
-    },
-    destroy() {
-      workers.forEach(worker => worker.terminate());
-      workers.clear();
-    },
-  };
-}
 
 const FileViewerComponent = {
   name: 'NextcloudFileViewerComponent',
@@ -172,10 +64,12 @@ const FileViewerComponent = {
   data() {
     return {
       channel: createChannel(),
+      connectedFrameSandbox: null,
       error: null,
       frameIsReady: false,
+      framePort: null,
+      frameSandboxMode: null,
       requestController: null,
-      workerBridge: null,
     };
   },
   computed: {
@@ -204,29 +98,66 @@ const FileViewerComponent = {
       return resolveFrameSandbox(sandbox, this.resolvedExtension);
     },
   },
-  mounted() {
+  created() {
+    this.frameSandboxMode = this.frameSandbox;
     window.addEventListener('message', this.onFrameMessage);
   },
   beforeDestroy() {
-    window.removeEventListener('message', this.onFrameMessage);
-    this.abortRequest();
-    this.destroyWorkerBridge();
+    this.destroyComponent();
+  },
+  beforeUnmount() {
+    this.destroyComponent();
   },
   methods: {
-    ensureWorkerBridge() {
-      if (!this.workerBridge) {
-        this.workerBridge = createFrameWorkerBridge({
-          frame: this.$refs.frame,
-          channel: this.channel,
-          assetBaseUrl: this.assetBaseUrl,
-        });
-      }
-      return this.workerBridge;
+    destroyComponent() {
+      window.removeEventListener('message', this.onFrameMessage);
+      this.abortRequest();
+      this.destroyFrameConnection();
     },
-    destroyWorkerBridge() {
-      if (this.workerBridge) {
-        this.workerBridge.destroy();
-        this.workerBridge = null;
+    attachFramePort(port) {
+      if (this.framePort) {
+        port.close();
+        return;
+      }
+
+      this.framePort = port;
+      this.connectedFrameSandbox = this.frameSandboxMode;
+      port.addEventListener('message', this.onFramePortMessage);
+      port.start();
+      port.postMessage({
+        type: FRAME_CONNECTED_MESSAGE,
+        channel: this.channel,
+      });
+      this.markFrameReady();
+    },
+    destroyFrameConnection() {
+      if (this.framePort) {
+        this.framePort.removeEventListener('message', this.onFramePortMessage);
+        this.framePort.close();
+        this.framePort = null;
+      }
+      this.frameIsReady = false;
+      this.connectedFrameSandbox = null;
+    },
+    ensureFrameSandbox() {
+      const nextSandbox = this.frameSandbox;
+      if (this.frameSandboxMode === nextSandbox) {
+        return false;
+      }
+
+      // Sandbox flags are fixed for the lifetime of the active document.
+      // Rotate the channel and key so Vue replaces the iframe before the new
+      // file can cross the EPUB same-origin boundary in either direction.
+      this.abortRequest();
+      this.destroyFrameConnection();
+      this.channel = createChannel();
+      this.frameSandboxMode = nextSandbox;
+      this.error = null;
+      return true;
+    },
+    onFileChanged() {
+      if (!this.ensureFrameSandbox()) {
+        void this.loadFileIntoFrame();
       }
     },
     abortRequest() {
@@ -236,12 +167,14 @@ const FileViewerComponent = {
       }
     },
     async loadFileIntoFrame() {
-      if (!this.frameIsReady) {
+      if (
+        !this.frameIsReady
+        || this.connectedFrameSandbox !== this.frameSandbox
+      ) {
         return;
       }
 
       this.abortRequest();
-      this.destroyWorkerBridge();
       const requestController = new AbortController();
       this.requestController = requestController;
 
@@ -259,22 +192,18 @@ const FileViewerComponent = {
           return;
         }
 
-        const frame = this.$refs.frame;
-        if (!frame?.contentWindow) {
-          throw new Error('File viewer iframe is not available');
+        if (!this.framePort) {
+          throw new Error('The secure file viewer channel is not connected.');
         }
 
-        frame.contentWindow.postMessage(
-          createFrameLoadMessage({
-            channel: this.channel,
-            blob,
-            filename: this.resolvedFilename,
-            mime: this.mime || blob.type,
-            size: this.size || blob.size,
-            geo,
-          }),
-          '*'
-        );
+        this.framePort.postMessage(createFrameLoadMessage({
+          channel: this.channel,
+          blob,
+          filename: this.resolvedFilename,
+          mime: this.mime || blob.type,
+          size: blob.size,
+          geo,
+        }));
       } catch (reason) {
         if (reason?.name === 'AbortError') {
           return;
@@ -293,9 +222,6 @@ const FileViewerComponent = {
         void this.loadFileIntoFrame();
       }
     },
-    onFrameLoad() {
-      this.markFrameReady();
-    },
     closeViewer() {
       if (window.OCA?.Viewer && typeof window.OCA.Viewer.close === 'function') {
         window.OCA.Viewer.close();
@@ -307,13 +233,29 @@ const FileViewerComponent = {
         return;
       }
 
-      if (workerRequestMessages.has(event.data.type)) {
-        this.ensureWorkerBridge().handle(event.data);
+      if (this.framePort) {
+        for (const port of event.ports || []) {
+          port.close();
+        }
         return;
       }
 
       if (event.data.type === FRAME_READY_MESSAGE) {
-        this.markFrameReady();
+        const port = event.ports?.length === 1 ? event.ports[0] : null;
+        if (!port) {
+          this.handleError('The sandboxed file viewer did not provide a secure communication channel.');
+          return;
+        }
+        this.attachFramePort(port);
+        return;
+      }
+
+      if (event.data.type === FRAME_ERROR_MESSAGE) {
+        this.handleError(event.data.error || 'The sandboxed file viewer failed to initialize.');
+      }
+    },
+    onFramePortMessage(event) {
+      if (event.target !== this.framePort || !isFrameMessage(event.data, this.channel)) {
         return;
       }
 
@@ -335,35 +277,33 @@ const FileViewerComponent = {
   },
   watch: {
     source() {
-      void this.loadFileIntoFrame();
+      this.onFileChanged();
     },
     davPath() {
-      void this.loadFileIntoFrame();
+      this.onFileChanged();
     },
     path() {
-      void this.loadFileIntoFrame();
+      this.onFileChanged();
     },
     filename() {
-      void this.loadFileIntoFrame();
+      this.onFileChanged();
     },
     basename() {
-      void this.loadFileIntoFrame();
+      this.onFileChanged();
     },
   },
   render(h) {
     const children = [
       h('iframe', {
+        key: this.channel,
         ref: 'frame',
         attrs: {
           src: this.frameUrl,
-          sandbox: this.frameSandbox,
+          sandbox: this.frameSandboxMode,
           referrerpolicy: 'no-referrer',
           credentialless: 'true',
           allow: 'fullscreen',
           title: this.resolvedFilename,
-        },
-        on: {
-          load: this.onFrameLoad,
         },
         style: {
           width: '100%',

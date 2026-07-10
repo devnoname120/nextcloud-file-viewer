@@ -13,19 +13,26 @@ NPM_STAMP := build/deps/npm.stamp
 
 RELEASE_PATHS := appinfo css img js lib templates viewer
 
-.PHONY: all build clean dist npm-deps php-lint prepare-release test
+.PHONY: all audit browser-test build clean dist npm-deps php-lint prepare-release test
 
 all: build
 
-$(NPM_STAMP): package.json package-lock.json
+$(NPM_STAMP): package.json package-lock.json .npmrc
 	mkdir -p "$(dir $@)"
-	npm ci
+	npm ci --strict-allow-scripts
 	touch "$@"
 
 npm-deps: $(NPM_STAMP)
 
 build: npm-deps
 	npm run build
+
+audit: npm-deps
+	npm run audit:production
+	npm run verify:dependencies
+
+browser-test: build
+	npm run test:browser:iframe
 
 php-lint:
 	find . -name '*.php' \
@@ -51,7 +58,7 @@ prepare-release:
 	npm version "$(VERSION)" --no-git-tag-version --ignore-scripts --allow-same-version
 	@echo "Updated appinfo/info.xml, package.json, and package-lock.json to version $(VERSION)"
 
-dist: test build
+dist: audit test browser-test
 	rm -rf "$(STAGING_DIR)" "$(ARTIFACTS_DIR)"
 	mkdir -p "$(STAGED_APP)" "$(ARTIFACTS_DIR)"
 	for path in $(RELEASE_PATHS); do \

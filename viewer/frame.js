@@ -10,6 +10,7 @@
   var errorEl = document.getElementById('error');
   var fileViewer = window.FlyfishFileViewerWebFull;
   var NativeWorker = window.Worker;
+  var NativeBlob = window.Blob;
   var NativeFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
   var NativeCreateObjectURL = window.URL && typeof window.URL.createObjectURL === 'function'
     ? window.URL.createObjectURL.bind(window.URL)
@@ -18,28 +19,49 @@
     ? window.URL.revokeObjectURL.bind(window.URL)
     : null;
   var libarchiveClassicWorkerUrls = new Set();
-  var pendingLibarchiveClassicWorkerUrls = 0;
-  var workerSequence = 0;
-  var workerProxies = new Map();
+  var libarchiveClassicWorkerBlobs = new WeakSet();
+  var libarchiveClassicWorkerSource = null;
+  var sandboxWorkerObjectUrls = new Map();
+  var sandboxWorkerPreparations = new Map();
+  var activeSandboxWorkers = new Set();
+  var parentPort = null;
+  var parentPortConnected = false;
+  var loadSequence = 0;
+  var disposed = false;
+  var workerPreparationController = typeof AbortController === 'function'
+    ? new AbortController()
+    : null;
 
-  var WORKER_CREATE_MESSAGE = 'nextcloud-file-viewer:worker:create';
-  var WORKER_POST_MESSAGE = 'nextcloud-file-viewer:worker:post';
-  var WORKER_TERMINATE_MESSAGE = 'nextcloud-file-viewer:worker:terminate';
-  var WORKER_MESSAGE_MESSAGE = 'nextcloud-file-viewer:worker:message';
-  var WORKER_ERROR_MESSAGE = 'nextcloud-file-viewer:worker:error';
-  var WORKER_MESSAGE_ERROR_MESSAGE = 'nextcloud-file-viewer:worker:messageerror';
+  var CONNECTED_MESSAGE = 'nextcloud-file-viewer:connected';
   var CLOSE_REQUEST_MESSAGE = 'nextcloud-file-viewer:close-request';
+  var DOCX_EXTENSIONS = new Set(['docx', 'docm', 'dotx', 'dotm']);
   var PRESENTATION_EXTENSIONS = new Set(['odp', 'otp', 'pot', 'potm', 'potx', 'pps', 'ppsm', 'ppsx', 'ppt', 'pptm', 'pptx']);
+  var WORKER_PRESENTATION_EXTENSIONS = new Set(['potm', 'potx', 'ppsm', 'ppsx', 'pptm', 'pptx']);
+  var SPREADSHEET_EXTENSIONS = new Set(['xlsx', 'xltx', 'xlsm', 'xlsb', 'xls', 'xlt', 'xltm', 'csv', 'ods', 'fods', 'numbers']);
+  var SPREADSHEET_WORKER_THRESHOLD = 1024 * 1024;
 
-  function post(type, data) {
+  function createProtocolMessage(type, data) {
+    return Object.assign({
+      type: type,
+      channel: channel,
+    }, data || {});
+  }
+
+  function postToParentWindow(type, data, transfer) {
     if (!isEmbedded) {
       return;
     }
 
-    window.parent.postMessage(Object.assign({
-      type: type,
-      channel: channel,
-    }, data || {}), parentOrigin);
+    window.parent.postMessage(createProtocolMessage(type, data), parentOrigin, transfer || []);
+  }
+
+  function post(type, data) {
+    if (parentPort) {
+      parentPort.postMessage(createProtocolMessage(type, data));
+      return;
+    }
+
+    postToParentWindow(type, data);
   }
 
   function showError(reason) {
@@ -100,14 +122,6 @@
     }
 
     return fallback;
-  }
-
-  function isTrustedParentMessage(event) {
-    return Boolean(
-      isEmbedded
-      && event.source === window.parent
-      && event.origin === parentOrigin
-    );
   }
 
   function syncFrameMode(extension) {
@@ -181,8 +195,12 @@
     ).toUpperCase();
   }
 
-  function patchLibarchiveClassicWorkerSource(source) {
-    return String(source).replace(/\bimport\.meta\.url\b/g, JSON.stringify(resolveAssetUrl('vendor/libarchive/worker-bundle.js')));
+  function patchWorkerSource(source, sourceUrl) {
+    var patchedSource = String(source).replace(/\bimport\.meta\.url\b/g, JSON.stringify(sourceUrl));
+    if (sourceUrl === resolveAssetUrl('vendor/pdf/pdf.worker.mjs')) {
+      patchedSource = patchedSource.replace(/\nexport \{ WorkerMessageHandler \};\s*\n/, '\n');
+    }
+    return patchedSource;
   }
 
   function installLibarchiveWorkerCompatibility() {
@@ -190,6 +208,7 @@
       !NativeFetch
       || !NativeCreateObjectURL
       || !NativeRevokeObjectURL
+      || typeof NativeBlob !== 'function'
       || typeof Response !== 'function'
       || typeof Headers !== 'function'
     ) {
@@ -206,12 +225,15 @@
         return NativeFetch(input, init);
       }
 
-      var response = await NativeFetch(input, init);
+      var response = await NativeFetch(input, Object.assign({}, init || {}, {
+        credentials: 'omit',
+      }));
       if (!response.ok) {
         return response;
       }
 
-      var source = patchLibarchiveClassicWorkerSource(await response.clone().text());
+      var source = patchWorkerSource(await response.clone().text(), libarchiveWorkerUrl);
+      libarchiveClassicWorkerSource = source;
       var headers = new Headers(response.headers);
       headers.set('content-type', 'text/javascript; charset=utf-8');
       headers.delete('content-security-policy');
@@ -222,20 +244,39 @@
         headers: headers,
       });
       patchedResponse.text = async function () {
-        pendingLibarchiveClassicWorkerUrls += 1;
         return source;
       };
       return patchedResponse;
     };
 
+    function SandboxBlob(parts, options) {
+      var blob = new NativeBlob(parts, options);
+      if (
+        libarchiveClassicWorkerSource !== null
+        && Array.isArray(parts)
+        && parts.some(function (part) {
+          return typeof part === 'string' && part === libarchiveClassicWorkerSource;
+        })
+      ) {
+        libarchiveClassicWorkerBlobs.add(blob);
+      }
+      return blob;
+    }
+
+    SandboxBlob.prototype = NativeBlob.prototype;
+    try {
+      Object.setPrototypeOf(SandboxBlob, NativeBlob);
+    } catch {
+      // Older browsers can still construct tagged Blob instances.
+    }
+    window.Blob = SandboxBlob;
+
     window.URL.createObjectURL = function (object) {
       var objectUrl = NativeCreateObjectURL.apply(window.URL, arguments);
       if (
-        pendingLibarchiveClassicWorkerUrls > 0
-        && object instanceof Blob
+        libarchiveClassicWorkerBlobs.has(object)
         && /(?:java|ecma)script/i.test(object.type || '')
       ) {
-        pendingLibarchiveClassicWorkerUrls -= 1;
         libarchiveClassicWorkerUrls.add(objectUrl);
       }
       return objectUrl;
@@ -258,95 +299,139 @@
     return blob;
   }
 
-  function createWorkerEvent(type, payload) {
-    if (type === 'message') {
-      return new MessageEvent('message', {
-        data: payload.message,
-      });
+  function resolveWorkerPath(extension, size) {
+    if (DOCX_EXTENSIONS.has(extension)) {
+      return 'vendor/docx/docx.worker.js';
     }
-
-    if (typeof ErrorEvent === 'function') {
-      return new ErrorEvent(type, {
-        message: payload.message || 'Worker error',
-        filename: payload.filename || '',
-        lineno: payload.lineno || 0,
-        colno: payload.colno || 0,
-      });
+    if (extension === 'pdf') {
+      return 'vendor/pdf/pdf.worker.mjs';
     }
-
-    var event = new Event(type);
-    event.message = payload.message || 'Worker error';
-    return event;
+    if (WORKER_PRESENTATION_EXTENSIONS.has(extension)) {
+      return 'vendor/pptx/pptx.worker.js';
+    }
+    if (SPREADSHEET_EXTENSIONS.has(extension) && size >= SPREADSHEET_WORKER_THRESHOLD) {
+      return 'vendor/xlsx/sheet.worker.js';
+    }
+    if (extension === 'dwg') {
+      return 'wasm/cad/dwg-worker.js';
+    }
+    return '';
   }
 
-  function dispatchWorkerEvent(proxy, eventType, payload) {
-    var event = createWorkerEvent(eventType, payload || {});
-    var handler = proxy['on' + eventType];
-    if (typeof handler === 'function') {
-      handler.call(proxy, event);
+  async function prepareSandboxWorker(extension, size) {
+    if (disposed) {
+      throw new Error('The sandboxed viewer document is no longer active.');
     }
-    proxy.dispatchEvent(event);
-  }
 
-  function installParentWorkerProxy() {
-    if (typeof NativeWorker !== 'function' || typeof EventTarget !== 'function') {
+    var workerPath = resolveWorkerPath(extension, size);
+    if (!workerPath) {
       return;
     }
 
-    var ParentWorkerProxy = class extends EventTarget {
-      constructor(scriptUrl, options) {
-        super();
-        if (isNativeWorkerUrl(scriptUrl)) {
-          return new NativeWorker(scriptUrl, resolveNativeWorkerOptions(scriptUrl, options));
-        }
-        this.id = 'worker-' + (++workerSequence);
-        this.onmessage = null;
-        this.onerror = null;
-        this.onmessageerror = null;
-        this.terminated = false;
-        workerProxies.set(this.id, this);
-        post(WORKER_CREATE_MESSAGE, {
-          workerId: this.id,
-          url: String(scriptUrl),
-          options: {
-            type: options && options.type,
-            credentials: options && options.credentials,
-            name: options && options.name,
-          },
-        });
-      }
+    if (
+      !NativeFetch
+      || !NativeCreateObjectURL
+      || !NativeRevokeObjectURL
+      || typeof NativeBlob !== 'function'
+    ) {
+      throw new Error('This browser cannot prepare an isolated parser worker.');
+    }
 
-      postMessage(message) {
-        if (this.terminated) {
-          return;
-        }
-        post(WORKER_POST_MESSAGE, {
-          workerId: this.id,
-          message: message,
-        });
-      }
+    var sourceUrl = resolveAssetUrl(workerPath);
+    if (sandboxWorkerObjectUrls.has(sourceUrl)) {
+      return;
+    }
 
-      terminate() {
-        if (this.terminated) {
-          return;
-        }
-        this.terminated = true;
-        workerProxies.delete(this.id);
-        post(WORKER_TERMINATE_MESSAGE, {
-          workerId: this.id,
+    var preparation = sandboxWorkerPreparations.get(sourceUrl);
+    if (!preparation) {
+      preparation = (async function () {
+        var response = await NativeFetch(sourceUrl, {
+          credentials: 'omit',
+          mode: 'cors',
+          cache: 'force-cache',
+          signal: workerPreparationController ? workerPreparationController.signal : undefined,
         });
-      }
-    };
+        if (!response.ok) {
+          throw new Error('Failed to fetch parser worker: ' + response.status + ' ' + response.statusText);
+        }
 
-    window.Worker = ParentWorkerProxy;
+        var source = patchWorkerSource(await response.text(), sourceUrl);
+        if (disposed) {
+          throw new Error('The sandboxed viewer document is no longer active.');
+        }
+        var objectUrl = NativeCreateObjectURL(new NativeBlob([source], {
+          type: 'text/javascript;charset=utf-8',
+        }));
+        sandboxWorkerObjectUrls.set(sourceUrl, objectUrl);
+      }());
+      sandboxWorkerPreparations.set(sourceUrl, preparation);
+    }
+
+    try {
+      await preparation;
+    } catch (reason) {
+      sandboxWorkerPreparations.delete(sourceUrl);
+      throw reason;
+    }
   }
 
-  function isNativeWorkerUrl(scriptUrl) {
-    try {
-      return new URL(String(scriptUrl), window.location.href).protocol === 'blob:';
-    } catch {
-      return false;
+  function installSandboxWorkerFactory() {
+    if (typeof NativeWorker !== 'function') {
+      return;
     }
+
+    function SandboxWorker(scriptUrl, options) {
+      var requestedUrl;
+      try {
+        requestedUrl = new URL(String(scriptUrl), window.location.href).href;
+      } catch {
+        throw new TypeError('Invalid parser worker URL.');
+      }
+
+      var objectUrl = requestedUrl;
+      var workerOptions = options;
+      if (new URL(requestedUrl).protocol === 'blob:') {
+        workerOptions = resolveNativeWorkerOptions(requestedUrl, options);
+      } else {
+        objectUrl = sandboxWorkerObjectUrls.get(requestedUrl);
+        if (!objectUrl) {
+          throw new Error('Parser worker was not prepared inside the sandbox: ' + requestedUrl);
+        }
+        if (
+          requestedUrl === resolveAssetUrl('vendor/pdf/pdf.worker.mjs')
+          || requestedUrl === resolveAssetUrl('vendor/pptx/pptx.worker.js')
+          || requestedUrl === resolveAssetUrl('vendor/xlsx/sheet.worker.js')
+          || requestedUrl === resolveAssetUrl('wasm/cad/dwg-worker.js')
+        ) {
+          // These self-contained bundles fail during module-worker startup
+          // under an opaque sandbox origin, but are designed to run as classic
+          // scripts too. Keep the workers opaque while selecting that mode here.
+          workerOptions = Object.assign({}, options || {}, {
+            type: 'classic',
+          });
+        }
+      }
+
+      var worker = new NativeWorker(objectUrl, workerOptions);
+      worker.addEventListener('error', function (event) {
+        console.error('[file-viewer] Isolated parser worker failed:', event.message || 'Worker error', event.filename || requestedUrl);
+      });
+      var nativeTerminate = worker.terminate.bind(worker);
+      worker.terminate = function () {
+        activeSandboxWorkers.delete(worker);
+        return nativeTerminate();
+      };
+      activeSandboxWorkers.add(worker);
+      return worker;
+    }
+
+    SandboxWorker.prototype = NativeWorker.prototype;
+    try {
+      Object.setPrototypeOf(SandboxWorker, NativeWorker);
+    } catch {
+      // Older browsers can still construct workers without the static prototype.
+    }
+    window.Worker = SandboxWorker;
   }
 
   function resolveNativeWorkerOptions(scriptUrl, options) {
@@ -360,6 +445,7 @@
   }
 
   async function loadMessage(data) {
+    var currentLoad = ++loadSequence;
     if (!data.file) {
       throw new Error('No file was sent to the sandboxed viewer.');
     }
@@ -367,14 +453,26 @@
     var filename = resolveFilename(data.filename);
     var extension = resolveExtension(filename);
     var file = createNamedFile(data.file, filename, data.mime);
+    var size = file.size;
     errorEl.dataset.visible = 'false';
     syncFrameMode(extension);
+    try {
+      await prepareSandboxWorker(extension, size);
+    } catch (reason) {
+      if (currentLoad !== loadSequence) {
+        return;
+      }
+      throw reason;
+    }
+    if (currentLoad !== loadSequence) {
+      return;
+    }
 
     viewer.source = {
       file: file,
       filename: filename,
       type: extension,
-      size: data.size || data.file.size,
+      size: size,
       options: createViewerOptions(data.geo),
     };
   }
@@ -411,7 +509,7 @@
 
   try {
     installLibarchiveWorkerCompatibility();
-    installParentWorkerProxy();
+    installSandboxWorkerFactory();
     fileViewer.setDefaultFullAssetBaseUrl(assetBase);
     fileViewer.defineFileViewerElement();
   } catch (reason) {
@@ -419,48 +517,40 @@
     return;
   }
 
-  window.addEventListener('message', function (event) {
-    if (!isTrustedParentMessage(event)) {
-      return;
-    }
-
+  function onParentPortMessage(event) {
     var data = event.data;
-    if (!data || typeof data !== 'object' || data.channel !== channel || data.type !== 'nextcloud-file-viewer:load') {
+    if (!data || typeof data !== 'object' || data.channel !== channel) {
       return;
     }
 
-    loadMessage(data).catch(showError);
-  });
-
-  window.addEventListener('message', function (event) {
-    if (!isTrustedParentMessage(event)) {
+    if (data.type === CONNECTED_MESSAGE) {
+      parentPortConnected = true;
       return;
     }
 
-    var data = event.data;
-    if (!data || typeof data !== 'object' || data.channel !== channel || !data.workerId) {
+    if (!parentPortConnected) {
       return;
     }
 
-    var proxy = workerProxies.get(data.workerId);
-    if (!proxy) {
+    if (data.type === 'nextcloud-file-viewer:load') {
+      loadMessage(data).catch(showError);
       return;
     }
 
-    if (data.type === WORKER_MESSAGE_MESSAGE) {
-      dispatchWorkerEvent(proxy, 'message', data);
+  }
+
+  function announceReady() {
+    if (typeof MessageChannel !== 'function') {
+      showError('This browser cannot create a secure file viewer channel.');
       return;
     }
 
-    if (data.type === WORKER_ERROR_MESSAGE) {
-      dispatchWorkerEvent(proxy, 'error', data);
-      return;
-    }
-
-    if (data.type === WORKER_MESSAGE_ERROR_MESSAGE) {
-      dispatchWorkerEvent(proxy, 'messageerror', data);
-    }
-  });
+    var messageChannel = new MessageChannel();
+    parentPort = messageChannel.port1;
+    parentPort.addEventListener('message', onParentPortMessage);
+    parentPort.start();
+    postToParentWindow('nextcloud-file-viewer:ready', null, [messageChannel.port2]);
+  }
 
   window.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
@@ -468,5 +558,30 @@
     }
   }, true);
 
-  post('nextcloud-file-viewer:ready');
+  window.addEventListener('pagehide', function (event) {
+    if (event.persisted) {
+      return;
+    }
+
+    disposed = true;
+    loadSequence += 1;
+    if (workerPreparationController) {
+      workerPreparationController.abort();
+    }
+    activeSandboxWorkers.forEach(function (worker) {
+      worker.terminate();
+    });
+    activeSandboxWorkers.clear();
+    sandboxWorkerObjectUrls.forEach(function (objectUrl) {
+      NativeRevokeObjectURL(objectUrl);
+    });
+    sandboxWorkerObjectUrls.clear();
+    sandboxWorkerPreparations.clear();
+    if (parentPort) {
+      parentPort.close();
+      parentPort = null;
+    }
+  });
+
+  announceReady();
 }());

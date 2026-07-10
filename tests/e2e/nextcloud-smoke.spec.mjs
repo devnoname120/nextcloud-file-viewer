@@ -87,7 +87,7 @@ test('closes the real Nextcloud viewer when Escape is pressed inside the filevie
   await frame.locator('body').click();
   await page.keyboard.press('Escape');
 
-  await expect(page.locator('iframe[src*="/fileviewer/viewer/index.html"]')).toHaveCount(0, { timeout: 10000 });
+  await expect(page.locator('iframe[src*="/fileviewer/viewer/frame"]')).toHaveCount(0, { timeout: 10000 });
   await expect.poll(() => page.url(), { timeout: 10000 }).not.toContain('openfile=true');
 });
 
@@ -213,7 +213,7 @@ async function openFileById(page, fileId, fileName) {
 async function waitForFileViewerFrame(page, timeout) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    const frame = page.frames().find(candidate => candidate.url().includes('/fileviewer/viewer/index.html'));
+    const frame = page.frames().find(candidate => candidate.url().includes('/fileviewer/viewer/frame'));
     if (frame) {
       return frame;
     }

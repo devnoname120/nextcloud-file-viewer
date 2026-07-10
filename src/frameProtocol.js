@@ -1,16 +1,11 @@
 export const APP_ID = 'fileviewer';
 
 export const FRAME_READY_MESSAGE = 'nextcloud-file-viewer:ready';
+export const FRAME_CONNECTED_MESSAGE = 'nextcloud-file-viewer:connected';
 export const FRAME_LOAD_MESSAGE = 'nextcloud-file-viewer:load';
 export const FRAME_LOADED_MESSAGE = 'nextcloud-file-viewer:loaded';
 export const FRAME_ERROR_MESSAGE = 'nextcloud-file-viewer:error';
 export const FRAME_CLOSE_REQUEST_MESSAGE = 'nextcloud-file-viewer:close-request';
-export const FRAME_WORKER_CREATE_MESSAGE = 'nextcloud-file-viewer:worker:create';
-export const FRAME_WORKER_POST_MESSAGE = 'nextcloud-file-viewer:worker:post';
-export const FRAME_WORKER_TERMINATE_MESSAGE = 'nextcloud-file-viewer:worker:terminate';
-export const FRAME_WORKER_MESSAGE_MESSAGE = 'nextcloud-file-viewer:worker:message';
-export const FRAME_WORKER_ERROR_MESSAGE = 'nextcloud-file-viewer:worker:error';
-export const FRAME_WORKER_MESSAGE_ERROR_MESSAGE = 'nextcloud-file-viewer:worker:messageerror';
 
 export const DEFAULT_SANDBOX = [
   'allow-scripts',
@@ -68,9 +63,9 @@ export function isFrameMessage(data, channel) {
 }
 
 export function serializeError(reason) {
-  if (reason instanceof Error) {
+  if (reason && typeof reason === 'object' && typeof reason.message === 'string') {
     return {
-      name: reason.name,
+      name: typeof reason.name === 'string' && reason.name ? reason.name : 'Error',
       message: reason.message,
     };
   }

@@ -175,8 +175,12 @@ class GeoSettings {
 	}
 
 	private function isAllowedBasemapUrl(string $url): bool {
+		if (str_contains($url, '\\') || preg_match('/[\x00-\x1F\x7F]/', $url) === 1) {
+			return false;
+		}
+
 		if (str_starts_with($url, '/')) {
-			return true;
+			return !str_starts_with($url, '//');
 		}
 
 		$scheme = parse_url($url, PHP_URL_SCHEME);
@@ -184,7 +188,7 @@ class GeoSettings {
 		return is_string($scheme)
 			&& is_string($host)
 			&& in_array(strtolower($scheme), ['http', 'https'], true)
-			&& $host !== '';
+			&& preg_match('/^[A-Za-z0-9.-]+$/D', $host) === 1;
 	}
 
 	private function extractOrigin(string $url): ?string {
@@ -199,7 +203,7 @@ class GeoSettings {
 		if (!in_array($scheme, ['http', 'https'], true)) {
 			return null;
 		}
-		if (!preg_match('/^[A-Za-z0-9.-]+$/', $host)) {
+		if (preg_match('/^[A-Za-z0-9.-]+$/D', $host) !== 1) {
 			return null;
 		}
 
@@ -209,4 +213,5 @@ class GeoSettings {
 		}
 		return $origin;
 	}
+
 }

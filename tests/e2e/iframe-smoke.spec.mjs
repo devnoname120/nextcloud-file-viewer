@@ -4,22 +4,27 @@ import path from 'node:path';
 
 import {
   DEFAULT_FRAME_SANDBOX,
+  createViewerDocumentCsp,
   createMinimalDocxBuffer,
   createMinimalEpubBuffer,
   createMinimalPdfBytes,
   createMinimalPptxBuffer,
   createMinimalPptxSlidesBuffer,
   createMinimalPsdBytes,
+  createScriptedEpubBuffer,
   createStyledEpubBuffer,
   createMinimalWasmBytes,
   createMinimalWavBytes,
   createMinimalXlsxBuffer,
   createZipBuffer,
+  collectDeepText,
   loadFileIntoSandbox,
   mountSandboxedFrame,
+  replaceSandboxedFrame,
   startStaticServer,
   waitForDeepMatch,
   waitForDeepText,
+  waitForNextWorkerInfo,
 } from './helpers.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -32,6 +37,23 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await server?.close();
 });
+
+test('serves the viewer document with a child-specific worker and EPUB stylesheet CSP', async ({ request }) => {
+  const response = await request.get(`${server.origin}/viewer/index.html`);
+  const expectedCsp = createViewerDocumentCsp(server.origin);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()['content-security-policy']).toBe(expectedCsp);
+  expect(expectedCsp).toMatch(/style-src [^;]* blob:/);
+  expect(expectedCsp).toContain('worker-src blob:');
+  expect(expectedCsp).not.toContain("worker-src 'self'");
+});
+
+async function expectSandboxLocalWorker(page, workerInfoPromise) {
+  const workerInfo = await workerInfoPromise;
+  expect(workerInfo.url).toMatch(/^blob:null\//);
+  expect(workerInfo.origin).toBe('null');
+  expect(await page.evaluate(() => window.__fileViewerWorkers.size)).toBe(0);
+}
 
 test('rejects file loads when the frame page is opened outside an iframe', async ({ page }) => {
   const channel = `top-level-frame-${Date.now()}`;
@@ -70,10 +92,104 @@ test('loads a text file in the strict sandboxed iframe', async ({ page }) => {
   await waitForDeepText(frame, uniqueText);
 });
 
+test('ignores file loads sent as window messages after the secure channel is connected', async ({ page }) => {
+  const channel = `iframe-window-message-${Date.now()}`;
+  const uniqueText = `window message must not load ${Date.now()}`;
+  const frame = await mountSandboxedFrame(page, server, channel);
+
+  await page.evaluate(({ expectedChannel, text }) => {
+    const iframe = document.getElementById('viewer-frame');
+    const blob = new Blob([text], { type: 'text/plain' });
+    iframe.contentWindow.postMessage({
+      type: 'nextcloud-file-viewer:load',
+      channel: expectedChannel,
+      file: blob,
+      filename: 'window-message.txt',
+      mime: 'text/plain',
+      size: blob.size,
+    }, '*');
+  }, { expectedChannel: channel, text: uniqueText });
+
+  await page.waitForTimeout(500);
+  expect(await collectDeepText(frame)).not.toContain(uniqueText);
+});
+
+test('ignores a malformed ready message after the secure channel is connected', async ({ page }) => {
+  const channel = `iframe-duplicate-ready-${Date.now()}`;
+  const uniqueText = `channel remains usable ${Date.now()}`;
+  const frame = await mountSandboxedFrame(page, server, channel);
+
+  await frame.evaluate(expectedChannel => {
+    parent.postMessage({
+      type: 'nextcloud-file-viewer:ready',
+      channel: expectedChannel,
+    }, '*');
+  }, channel);
+
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => window.__fileViewerHandshakeErrors)).toBe(0);
+
+  await loadFileIntoSandbox(page, channel, {
+    filename: 'still-connected.txt',
+    mime: 'text/plain',
+    text: uniqueText,
+  });
+  await waitForDeepText(frame, uniqueText);
+});
+
+test('does not reconnect or expose file messages after the iframe navigates', async ({ page }) => {
+  const channel = `iframe-navigation-${Date.now()}`;
+  const uniqueText = `navigation secret ${Date.now()}`;
+  await mountSandboxedFrame(page, server, channel);
+
+  await page.evaluate(expectedChannel => {
+    const iframe = document.getElementById('viewer-frame');
+    iframe.srcdoc = `<!doctype html><script>
+      const pair = new MessageChannel();
+      pair.port1.addEventListener('message', event => {
+        parent.postMessage({ type: 'navigation-port-message', payload: event.data }, '*');
+      });
+      pair.port1.start();
+      parent.postMessage({
+        type: 'nextcloud-file-viewer:ready',
+        channel: ${JSON.stringify(expectedChannel)},
+      }, '*', [pair.port2]);
+      window.addEventListener('message', event => {
+        parent.postMessage({ type: 'navigation-window-message', payload: event.data }, '*');
+      });
+      parent.postMessage({ type: 'navigation-probe-ready' }, '*');
+    <\/script>`;
+  }, channel);
+
+  await page.waitForFunction(() => window.__fileViewerMessages.some(message => (
+    message && message.type === 'navigation-probe-ready'
+  )));
+
+  await page.evaluate(({ expectedChannel, text }) => {
+    const blob = new Blob([text], { type: 'text/plain' });
+    window.__fileViewerPort.postMessage({
+      type: 'nextcloud-file-viewer:load',
+      channel: expectedChannel,
+      file: blob,
+      filename: 'navigation-secret.txt',
+      mime: 'text/plain',
+      size: blob.size,
+    });
+  }, { expectedChannel: channel, text: uniqueText });
+
+  await page.waitForTimeout(500);
+  const navigationMessages = await page.evaluate(() => window.__fileViewerMessages.filter(message => (
+    message
+    && (message.type === 'navigation-port-message' || message.type === 'navigation-window-message')
+  )));
+  expect(navigationMessages).toEqual([]);
+});
+
 test('loads a PDF file in the strict sandboxed iframe', async ({ page }) => {
   const channel = `iframe-pdf-${Date.now()}`;
   const uniqueText = `Iframe PDF smoke ${Date.now()}`;
   const frame = await mountSandboxedFrame(page, server, channel);
+  const workerInfoPromise = waitForNextWorkerInfo(page);
 
   await loadFileIntoSandbox(page, channel, {
     filename: 'smoke.pdf',
@@ -85,6 +201,27 @@ test('loads a PDF file in the strict sandboxed iframe', async ({ page }) => {
     texts: [uniqueText],
     selectors: ['canvas'],
   });
+  await expectSandboxLocalWorker(page, workerInfoPromise);
+});
+
+test('parses a large XLSX in an opaque sandbox-local worker', async ({ page }) => {
+  const channel = `iframe-large-xlsx-${Date.now()}`;
+  const uniqueText = `large XLSX worker ${Date.now()}`;
+  const frame = await mountSandboxedFrame(page, server, channel);
+  const workerInfoPromise = waitForNextWorkerInfo(page);
+  const bytes = createMinimalXlsxBuffer(uniqueText, 1050000);
+  expect(bytes.length).toBeGreaterThanOrEqual(1024 * 1024);
+
+  await loadFileIntoSandbox(page, channel, {
+    filename: 'large-smoke.xlsx',
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    bytes,
+  }, 45000);
+
+  await waitForDeepMatch(frame, {
+    selectors: ['.excel-wrapper canvas', '.e-virt-table-canvas'],
+  }, 45000);
+  await expectSandboxLocalWorker(page, workerInfoPromise);
 });
 
 async function waitForVisibleEpubContent(frame, expected, timeout = 30000) {
@@ -142,6 +279,148 @@ test('renders styled EPUB chapter content in the EPUB sandboxed iframe', async (
   }, 15000);
 
   await waitForVisibleEpubContent(frame, uniqueText, 15000);
+  await expect.poll(() => frame.evaluate(expectedText => {
+    function findAllDeep(node, selector, matches = []) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.matches(selector)) {
+        matches.push(node);
+      }
+      if (node.shadowRoot) {
+        findAllDeep(node.shadowRoot, selector, matches);
+      }
+      for (const child of node.childNodes) {
+        findAllDeep(child, selector, matches);
+      }
+      return matches;
+    }
+
+    const chapterFrame = findAllDeep(document, '.epub-stage iframe, .epub-view iframe, iframe')
+      .find(iframe => {
+        try {
+          return (iframe.contentDocument?.body?.innerText || '').includes(expectedText);
+        } catch {
+          return false;
+        }
+      });
+    const chapterDocument = chapterFrame?.contentDocument;
+    const chapterBody = chapterDocument?.querySelector('.chapter-body');
+    const publisherStylesheet = chapterDocument?.querySelector('link[rel="stylesheet"]');
+    if (!chapterBody || !publisherStylesheet) {
+      return null;
+    }
+
+    const style = getComputedStyle(chapterBody);
+    return {
+      publisherStylesheetLoaded: Boolean(publisherStylesheet.sheet),
+      publisherStylesheetUsesBlob: publisherStylesheet.href.startsWith('blob:'),
+      borderLeftWidth: style.borderLeftWidth,
+      borderLeftStyle: style.borderLeftStyle,
+      paddingLeft: style.paddingLeft,
+    };
+  }, uniqueText), { timeout: 15000 }).toEqual({
+    publisherStylesheetLoaded: true,
+    publisherStylesheetUsesBlob: true,
+    borderLeftWidth: '4px',
+    borderLeftStyle: 'solid',
+    paddingLeft: '16px',
+  });
+});
+
+test('keeps scripted EPUB chapter content in a nested no-scripts sandbox', async ({ page }) => {
+  const channel = `iframe-scripted-epub-${Date.now()}`;
+  const uniqueText = `scripted EPUB security probe ${Date.now()}`;
+  const frame = await mountSandboxedFrame(page, server, channel, {
+    sandbox: `${DEFAULT_FRAME_SANDBOX} allow-same-origin`,
+  });
+
+  await page.evaluate(() => {
+    window.__fileViewerEpubSecurityProbe = [];
+  });
+  await frame.evaluate(() => {
+    window.__fileViewerEpubSecurityProbe = [];
+  });
+
+  await loadFileIntoSandbox(page, channel, {
+    filename: 'scripted-security-smoke.epub',
+    mime: 'application/epub+zip',
+    bytes: createScriptedEpubBuffer('Scripted EPUB security smoke', uniqueText),
+  }, 15000);
+
+  await waitForVisibleEpubContent(frame, uniqueText, 15000);
+
+  const chapterSandboxTokens = await frame.evaluate(expectedText => {
+    function findAllDeep(node, selector, matches = []) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.matches(selector)) {
+        matches.push(node);
+      }
+      if (node.shadowRoot) {
+        findAllDeep(node.shadowRoot, selector, matches);
+      }
+      for (const child of node.childNodes) {
+        findAllDeep(child, selector, matches);
+      }
+      return matches;
+    }
+
+    const chapterFrame = findAllDeep(document, '.epub-stage iframe, .epub-view iframe, iframe')
+      .find(iframe => {
+        try {
+          return (iframe.contentDocument?.body?.innerText || '').includes(expectedText);
+        } catch {
+          return false;
+        }
+      });
+
+    if (!chapterFrame) {
+      throw new Error('Rendered EPUB chapter iframe was not found.');
+    }
+
+    return (chapterFrame.getAttribute('sandbox') || '')
+      .split(/\s+/)
+      .filter(Boolean);
+  }, uniqueText);
+
+  expect(chapterSandboxTokens).toContain('allow-same-origin');
+  expect(chapterSandboxTokens).not.toContain('allow-scripts');
+
+  await page.waitForTimeout(250);
+  await expect.poll(() => frame.evaluate(() => window.__fileViewerEpubSecurityProbe)).toEqual([]);
+  await expect.poll(() => page.evaluate(() => window.__fileViewerEpubSecurityProbe)).toEqual([]);
+});
+
+test('recreates the frame when crossing the EPUB sandbox boundary', async ({ page }) => {
+  const channel = `iframe-sandbox-transition-${Date.now()}`;
+  const epubText = `EPUB transition ${Date.now()}`;
+  const pdfText = `post-EPUB PDF ${Date.now()}`;
+  const initialFrame = await mountSandboxedFrame(page, server, channel);
+  expect(await initialFrame.evaluate(() => self.origin)).toBe('null');
+
+  const epubFrame = await replaceSandboxedFrame(
+    page,
+    server,
+    channel,
+    `${DEFAULT_FRAME_SANDBOX} allow-same-origin`,
+  );
+  expect(await epubFrame.evaluate(() => self.origin)).toBe(server.origin);
+  await loadFileIntoSandbox(page, channel, {
+    filename: 'transition.epub',
+    mime: 'application/epub+zip',
+    bytes: createStyledEpubBuffer('Transition EPUB', epubText),
+  }, 15000);
+  await waitForVisibleEpubContent(epubFrame, epubText, 15000);
+
+  const strictFrame = await replaceSandboxedFrame(page, server, channel, DEFAULT_FRAME_SANDBOX);
+  expect(await strictFrame.evaluate(() => self.origin)).toBe('null');
+  const workerInfoPromise = waitForNextWorkerInfo(page);
+  await loadFileIntoSandbox(page, channel, {
+    filename: 'after-epub.pdf',
+    mime: 'application/pdf',
+    bytes: createMinimalPdfBytes(pdfText),
+  });
+  await waitForDeepMatch(strictFrame, {
+    texts: [pdfText],
+    selectors: ['canvas'],
+  });
+  await expectSandboxLocalWorker(page, workerInfoPromise);
 });
 
 async function getPresentationLayoutInfo(frame) {
@@ -482,8 +761,15 @@ for (const rendererCase of rendererCases) {
     const channel = `iframe-${rendererCase.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
     const uniqueText = `smoke-${rendererCase.name.replace(/[^A-Za-z0-9]+/g, '-')}-${Date.now()}`;
     const frame = await mountSandboxedFrame(page, server, channel);
+    const workerInfoPromise = (
+      rendererCase.name === 'Word OpenXML DOCX'
+      || rendererCase.name === 'PowerPoint PPTX'
+    ) ? waitForNextWorkerInfo(page) : null;
 
     await loadFileIntoSandbox(page, channel, rendererCase.sample(uniqueText), 45000);
     await waitForDeepMatch(frame, rendererCase.match(uniqueText), 45000);
+    if (workerInfoPromise) {
+      await expectSandboxLocalWorker(page, workerInfoPromise);
+    }
   });
 }

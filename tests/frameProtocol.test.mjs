@@ -9,6 +9,7 @@ import {
   createFrameLoadMessage,
   isFrameMessage,
   resolveFrameSandbox,
+  serializeError,
 } from '../src/frameProtocol.js';
 
 test('default iframe sandbox keeps the child in an opaque origin', () => {
@@ -83,4 +84,18 @@ test('frame message guard requires the matching channel', () => {
   assert.equal(isFrameMessage({ type: FRAME_READY_MESSAGE, channel: 'other' }, 'abc123'), false);
   assert.equal(isFrameMessage({ type: FRAME_READY_MESSAGE }, 'abc123'), false);
   assert.equal(isFrameMessage(null, 'abc123'), false);
+});
+
+test('structured-cloned frame errors preserve their name and message', () => {
+  assert.deepEqual(serializeError({
+    name: 'ParserError',
+    message: 'The parser rejected the file.',
+  }), {
+    name: 'ParserError',
+    message: 'The parser rejected the file.',
+  });
+  assert.deepEqual(serializeError({ message: 'No error name.' }), {
+    name: 'Error',
+    message: 'No error name.',
+  });
 });

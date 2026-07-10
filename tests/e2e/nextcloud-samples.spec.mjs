@@ -321,7 +321,7 @@ async function openSampleById(page, fileId) {
 async function waitForFileViewerFrame(page, timeout) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    const frame = page.frames().find(candidate => candidate.url().includes('/fileviewer/viewer/index.html'));
+    const frame = page.frames().find(candidate => candidate.url().includes('/fileviewer/viewer/frame'));
     if (frame) {
       return frame;
     }

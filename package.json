@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "audit:production": "npm audit --omit=dev --audit-level=low",
     "test:browser:iframe": "playwright test tests/e2e/iframe-smoke.spec.mjs --browser=chromium",
     "test:browser:examples": "playwright test tests/e2e/upstream-examples.spec.mjs --browser=chromium",
     "test:e2e:nextcloud": "playwright test tests/e2e/nextcloud-smoke.spec.mjs --browser=chromium",
@@ -15,13 +16,15 @@
     "generate:formats": "node scripts/generate-supported-formats.mjs",
     "copy:admin-styles": "node scripts/copy-admin-styles.mjs",
     "copy:viewer-assets": "node scripts/copy-viewer-assets.mjs",
-    "build": "npm run generate:formats && vite --mode production build && npm run copy:admin-styles && npm run copy:viewer-assets",
+    "verify:dependencies": "node scripts/verify-dependencies.mjs",
+    "verify:copied-assets": "node scripts/verify-dependencies.mjs --copied",
+    "build": "npm run generate:formats && vite --mode production build && npm run copy:admin-styles && npm run copy:viewer-assets && npm run verify:copied-assets",
     "dev": "npm run generate:formats && vite --mode development build && npm run copy:admin-styles && npm run copy:viewer-assets",
     "watch": "npm run generate:formats && vite --mode development build --watch"
   },
   "engines": {
     "node": ">=24",
-    "npm": ">=10"
+    "npm": ">=11.16.0"
   },
   "dependencies": {
     "@file-viewer/core": "^2.1.23",
@@ -42,6 +45,14 @@
   "browserslist": [
     "extends @nextcloud/browserslist-config"
   ],
+  "allowScripts": {
+    "@file-viewer/web": false,
+    "core-js": false,
+    "es5-ext": false,
+    "esbuild@0.28.1": true,
+    "fsevents@2.3.2": true,
+    "fsevents@2.3.3": true
+  },
   "overrides": {
     "@xmldom/xmldom": "^0.9.10",
     "minimatch": "^10.2.1"
