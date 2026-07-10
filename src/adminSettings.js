@@ -1,12 +1,12 @@
 import { loadState } from '@nextcloud/initial-state';
 import { generateUrl } from '@nextcloud/router';
-import Vue from 'vue';
+import { createApp, h } from 'vue';
 
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js';
-import NcCheckboxRadioSwitch from '@nextcloud/vue/dist/Components/NcCheckboxRadioSwitch.js';
-import NcSelect from '@nextcloud/vue/dist/Components/NcSelect.js';
-import NcSettingsSection from '@nextcloud/vue/dist/Components/NcSettingsSection.js';
-import NcTextField from '@nextcloud/vue/dist/Components/NcTextField.js';
+import NcButton from '@nextcloud/vue/components/NcButton';
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch';
+import NcSelect from '@nextcloud/vue/components/NcSelect';
+import NcSettingsSection from '@nextcloud/vue/components/NcSettingsSection';
+import NcTextField from '@nextcloud/vue/components/NcTextField';
 
 import './adminSettings.css';
 
@@ -219,34 +219,24 @@ const AdminSettingsApp = {
 		},
 		renderGeoField(h, key, label, props = {}) {
 			return h(NcTextField, {
-				props: {
-					label,
-					value: this.geoSettings[key],
-					...props,
-				},
-				attrs: {
-					id: `fileviewer-geo-${key}`,
-					autocomplete: 'off',
-				},
-				on: {
-					'update:value': value => this.updateGeoField(key, value),
-				},
+				label,
+				modelValue: this.geoSettings[key],
+				...props,
+				id: `fileviewer-geo-${key}`,
+				autocomplete: 'off',
+				'onUpdate:modelValue': value => this.updateGeoField(key, value),
 			});
 		},
 		renderGeoSettings(h) {
 			const fields = [
 				h(NcSelect, {
-					props: {
-						inputId: 'fileviewer-geo-basemap',
-						inputLabel: 'Geospatial basemap',
-						label: 'label',
-						clearable: false,
-						options: GEO_BASEMAP_OPTIONS,
-						value: this.selectedBasemapOption,
-					},
-					on: {
-						input: this.onBasemapInput,
-					},
+					inputId: 'fileviewer-geo-basemap',
+					inputLabel: 'Geospatial basemap',
+					label: 'label',
+					clearable: false,
+					options: GEO_BASEMAP_OPTIONS,
+					modelValue: this.selectedBasemapOption,
+					'onUpdate:modelValue': this.onBasemapInput,
 				}),
 			];
 
@@ -281,63 +271,49 @@ const AdminSettingsApp = {
 			}
 
 			return h(NcSettingsSection, {
-				props: {
-					name: 'Geospatial basemap',
-					description: 'Geospatial previews use OpenFreeMap Liberty by default. Switch to offline mode to avoid external tile requests, or configure a custom tile/style endpoint for your deployment.',
-				},
-			}, [
-				h('form', {
-					class: 'fileviewer-settings-form',
-					attrs: {
+				name: 'Geospatial basemap',
+				description: 'Geospatial previews use OpenFreeMap Liberty by default. Switch to offline mode to avoid external tile requests, or configure a custom tile/style endpoint for your deployment.',
+			}, {
+				default: () => [
+					h('form', {
+						class: 'fileviewer-settings-form',
 						id: 'fileviewer-geo-settings-form',
-					},
-					on: {
-						submit: event => {
+						onSubmit: event => {
 							event.preventDefault();
 							void this.saveGeoSettings();
 						},
-					},
-				}, [
-					...fields,
-					h('div', { class: 'fileviewer-settings-actions' }, [
-						h(NcButton, {
-							props: {
-								type: 'primary',
-								nativeType: 'submit',
+					}, [
+						...fields,
+						h('div', { class: 'fileviewer-settings-actions' }, [
+							h(NcButton, {
+								variant: 'primary',
+								type: 'submit',
 								disabled: this.savingGeo,
 								ariaLabel: 'Save geospatial settings',
-							},
-						}, ['Save']),
-						h('span', {
-							attrs: {
+								text: 'Save',
+							}),
+							h('span', {
 								id: 'fileviewer-geo-settings-message',
 								'aria-live': 'polite',
-							},
-						}, this.geoMessage),
+							}, this.geoMessage),
+						]),
 					]),
-				]),
-			]);
+				],
+			});
 		},
 		renderMimeRow(h, mime) {
 			return h('div', {
 				class: 'fileviewer-mime-row',
-				attrs: {
-					'data-fileviewer-mime-row': '',
-					'data-mime': mime,
-				},
+				'data-fileviewer-mime-row': '',
+				'data-mime': mime,
 			}, [
 				h(NcCheckboxRadioSwitch, {
-					props: {
-						id: `fileviewer-mime-${mime.replace(/[^A-Za-z0-9_-]/g, '-')}`,
-						name: 'mimes',
-						checked: this.isMimeEnabled(mime),
-					},
-					on: {
-						'update:checked': enabled => this.setMimeEnabled(mime, enabled),
-					},
-				}, [
-					h('code', mime),
-				]),
+					id: `fileviewer-mime-${mime.replace(/[^A-Za-z0-9_-]/g, '-')}`,
+					modelValue: this.isMimeEnabled(mime),
+					'onUpdate:modelValue': enabled => this.setMimeEnabled(mime, enabled),
+				}, {
+					default: () => h('code', mime),
+				}),
 			]);
 		},
 		renderMimeGroup(h, mimeGroup) {
@@ -346,18 +322,14 @@ const AdminSettingsApp = {
 
 			return h('section', {
 				class: 'fileviewer-mime-group',
-				attrs: {
-					'aria-labelledby': headingId,
-					'data-fileviewer-mime-group': mimeGroup.id,
-				},
+				'aria-labelledby': headingId,
+				'data-fileviewer-mime-group': mimeGroup.id,
 			}, [
 				h('div', { class: 'fileviewer-mime-group-header' }, [
 					h('div', { class: 'fileviewer-mime-group-heading' }, [
 						h('h3', {
 							class: 'fileviewer-mime-group-title',
-							attrs: {
-								id: headingId,
-							},
+							id: headingId,
 						}, mimeGroup.label),
 						h('p', { class: 'fileviewer-mime-group-extensions' }, mimeGroup.extensionText),
 					]),
@@ -368,89 +340,65 @@ const AdminSettingsApp = {
 		},
 		renderMimeSettings(h) {
 			return h(NcSettingsSection, {
-				props: {
-					name: 'MIME types handled by File Viewer',
-					description: 'Disable MIME types here to let Nextcloud use another viewer or fall back to download handling.',
-				},
-			}, [
-				h('form', {
-					class: 'fileviewer-settings-form',
-					attrs: {
+				name: 'MIME types handled by File Viewer',
+				description: 'Disable MIME types here to let Nextcloud use another viewer or fall back to download handling.',
+			}, {
+				default: () => [
+					h('form', {
+						class: 'fileviewer-settings-form',
 						id: 'fileviewer-mime-settings-form',
-					},
-					on: {
-						submit: event => {
+						onSubmit: event => {
 							event.preventDefault();
 						},
-					},
-				}, [
-					h(NcTextField, {
-						props: {
+					}, [
+						h(NcTextField, {
 							label: 'Filter file types',
 							type: 'search',
-							value: this.mimeFilter,
+							modelValue: this.mimeFilter,
 							placeholder: 'PDF, dwg, application/pdf, text/markdown, image/...',
-						},
-						attrs: {
 							id: 'fileviewer-mime-filter',
 							autocomplete: 'off',
-						},
-						on: {
-							'update:value': value => {
+							'onUpdate:modelValue': value => {
 								this.mimeFilter = value;
 							},
-						},
-					}),
-					h('div', { class: 'fileviewer-settings-actions' }, [
-						h(NcButton, {
-							props: {
-								nativeType: 'button',
+						}),
+						h('div', { class: 'fileviewer-settings-actions' }, [
+							h(NcButton, {
+								type: 'button',
 								ariaLabel: 'Enable visible MIME types',
-							},
-							on: {
-								click: () => this.setVisibleMimes(true),
-							},
-						}, ['Enable visible']),
-						h(NcButton, {
-							props: {
-								nativeType: 'button',
+								text: 'Enable visible',
+								onClick: () => this.setVisibleMimes(true),
+							}),
+							h(NcButton, {
+								type: 'button',
 								ariaLabel: 'Disable visible MIME types',
-							},
-							on: {
-								click: () => this.setVisibleMimes(false),
-							},
-						}, ['Disable visible']),
-						h('span', {
-							attrs: {
+								text: 'Disable visible',
+								onClick: () => this.setVisibleMimes(false),
+							}),
+							h('span', {
 								id: 'fileviewer-mime-settings-count',
 								'aria-live': 'polite',
-							},
-						}, this.mimeCountText),
-						h('span', {
-							attrs: {
+							}, this.mimeCountText),
+							h('span', {
 								id: 'fileviewer-mime-settings-message',
 								'aria-live': 'polite',
-							},
-						}, this.mimeMessage),
-					]),
-					h('div', {
-						class: 'fileviewer-mime-groups',
-						attrs: {
-							id: 'fileviewer-mime-settings-list',
-						},
-					}, this.filteredMimeGroups.length > 0
-						? this.filteredMimeGroups.map(mimeGroup => this.renderMimeGroup(h, mimeGroup))
-						: [
-							h('p', { class: 'fileviewer-mime-empty' }, 'No MIME types match this filter.'),
+							}, this.mimeMessage),
 						]),
+						h('div', {
+							class: 'fileviewer-mime-groups',
+							id: 'fileviewer-mime-settings-list',
+						}, this.filteredMimeGroups.length > 0
+							? this.filteredMimeGroups.map(mimeGroup => this.renderMimeGroup(h, mimeGroup))
+							: [
+								h('p', { class: 'fileviewer-mime-empty' }, 'No MIME types match this filter.'),
+							]),
 					]),
-				]);
-			},
+				],
+			});
 		},
-	render(h) {
-		return h('div', {
-			class: 'fileviewer-admin-settings',
-		}, [
+	},
+	render() {
+		return h('div', { class: 'fileviewer-admin-settings' }, [
 			this.renderGeoSettings(h),
 			this.renderMimeSettings(h),
 		]);
@@ -458,7 +406,5 @@ const AdminSettingsApp = {
 };
 
 if (root) {
-	new Vue({
-		render: h => h(AdminSettingsApp),
-	}).$mount(root);
+	createApp(AdminSettingsApp).mount(root);
 }

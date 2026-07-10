@@ -54,17 +54,6 @@ matrix.
 | Video | `mp4`, `webm`, `m3u8` |
 | Fonts, design assets, and data | `ttf`, `otf`, `woff`, `woff2`, `psd`, `ai`, `eps`, `sqlite`, `wasm`, `parquet`, `avro`, `webarchive` |
 
-## Build
-
-```bash
-npm install
-npm run build
-```
-
-The build generates `src/supportedFormats.generated.js`, bundles the Viewer
-registration script into `js/fileviewer-main.mjs`, and copies Flyfish runtime
-assets into `viewer/file-viewer/`.
-
 ## Sandbox
 
 The default sandbox is:
@@ -98,6 +87,6 @@ occ config:app:set fileviewer sandbox --value="allow-scripts allow-same-origin a
 	    </settings>
     <dependencies>
         <php min-version="8.2" max-version="8.5" />
-        <nextcloud min-version="34" max-version="35" />
+        <nextcloud min-version="33" max-version="35" />
     </dependencies>
 </info>

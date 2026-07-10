@@ -20,18 +20,17 @@
     "watch": "npm run generate:formats && vite --mode development build --watch"
   },
   "engines": {
-    "node": "^20.0.0",
-    "npm": "^10.0.0"
+    "node": ">=24",
+    "npm": ">=10"
   },
   "dependencies": {
     "@file-viewer/core": "^2.1.23",
     "@file-viewer/web-full": "^2.1.23",
     "@nextcloud/initial-state": "^3.0.0",
     "@nextcloud/router": "^3.1.0",
-    "@nextcloud/viewer": "^1.0.0",
-    "@nextcloud/vue": "^8.39.0",
+    "@nextcloud/vue": "^9.8.2",
     "mime-types": "^3.0.2",
-    "vue": "^2.7.16"
+    "vue": "^3.5.39"
   },
   "devDependencies": {
     "@nextcloud/browserslist-config": "^3.1.2",

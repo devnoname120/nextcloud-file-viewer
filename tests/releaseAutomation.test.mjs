@@ -40,6 +40,9 @@ test('app version helper reads, validates, and updates appinfo/info.xml', async 
 test('release packaging is wired to build a fileviewer appstore archive', async () => {
   const makefile = await readFile('Makefile', 'utf8');
   const workflow = await readFile('.github/workflows/release-appstore.yml', 'utf8');
+  const packageJson = await readFile('package.json', 'utf8');
+  const packageLock = JSON.parse(await readFile('package-lock.json', 'utf8'));
+  const appInfo = await readFile('appinfo/info.xml', 'utf8');
 
   assert.match(makefile, /^APP_ID\s*:=\s*fileviewer$/m);
   assert.match(makefile, /APP_VERSION\s*:=\s*\$\(shell php scripts\/app-version\.php get\)/);
@@ -49,9 +52,31 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.doesNotMatch(makefile, /RELEASE_PATHS\s*:=.*(?:src|tests|node_modules)/);
 
   assert.match(workflow, /release:\s*\n\s+types:\s*\[published\]/);
+  assert.match(workflow, /actions\/checkout@[0-9a-f]{40} # v7\.0\.0/);
+  assert.match(workflow, /actions\/setup-node@[0-9a-f]{40} # v6\.4\.0/);
+  assert.match(workflow, /shivammathur\/setup-php@[0-9a-f]{40} # 2\.37\.2/);
+  assert.match(workflow, /node-version:\s*24/);
+  assert.doesNotMatch(workflow, /node-version:\s*20/);
   assert.match(workflow, /run:\s*make dist/);
   assert.match(workflow, /build\/artifacts\/fileviewer-\*\.tar\.gz/);
   assert.match(workflow, /app_name:\s*fileviewer/);
   assert.match(workflow, /appstore_token:\s*\$\{\{ secrets\.NC_APPSTORE_TOKEN \}\}/);
   assert.match(workflow, /app_private_key:\s*\$\{\{ secrets\.NC_APP_PRIVATE_KEY \}\}/);
+
+  assert.match(packageJson, /"node":\s*">=24"/);
+  assert.match(packageJson, /"npm":\s*">=10"/);
+  assert.match(packageJson, /"@nextcloud\/vue":\s*"\^9\./);
+  assert.match(packageJson, /"vue":\s*"\^3\./);
+  assert.equal(packageLock.packages[''].engines.node, '>=24');
+  assert.equal(packageLock.packages[''].engines.npm, '>=10');
+  assert.equal(packageLock.packages['node_modules/@nextcloud/viewer'], undefined);
+  assert.equal(packageLock.packages['node_modules/@nextcloud/vue/node_modules/@nextcloud/initial-state'], undefined);
+
+  assert.match(appInfo, /<php min-version="8\.2" max-version="8\.5" \/>/);
+  assert.match(appInfo, /<nextcloud min-version="33" max-version="35" \/>/);
+
+  const description = appInfo.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)?.[1] || '';
+  assert.doesNotMatch(description, /^## Build$/m);
+  assert.doesNotMatch(description, /npm install/);
+  assert.doesNotMatch(description, /npm run build/);
 });

@@ -56,7 +56,7 @@ async function setMimeEnabled(page, mime, enabled) {
 
   const row = page.locator(`[data-fileviewer-mime-row][data-mime="${mime}"]`);
   await expect(row).toBeVisible({ timeout: 10000 });
-  const checkbox = row.locator('input[name="mimes"]');
+  const checkbox = row.locator('input.checkbox-radio-switch__input');
   const originalEnabled = await checkbox.isChecked();
   if (originalEnabled !== enabled) {
     await row.locator('.checkbox-radio-switch__content').click();

@@ -55,11 +55,17 @@ test('admin settings UI uses official Nextcloud Vue settings components', async 
     readFile('scripts/copy-admin-styles.mjs', 'utf8'),
   ]);
 
-  assert.match(adminScript, /@nextcloud\/vue\/dist\/Components\/NcSettingsSection\.js/);
-  assert.match(adminScript, /@nextcloud\/vue\/dist\/Components\/NcCheckboxRadioSwitch\.js/);
-  assert.match(adminScript, /@nextcloud\/vue\/dist\/Components\/NcButton\.js/);
-  assert.match(adminScript, /@nextcloud\/vue\/dist\/Components\/NcTextField\.js/);
-  assert.match(adminScript, /@nextcloud\/vue\/dist\/Components\/NcSelect\.js/);
+  assert.match(adminScript, /@nextcloud\/vue\/components\/NcSettingsSection/);
+  assert.match(adminScript, /@nextcloud\/vue\/components\/NcCheckboxRadioSwitch/);
+  assert.match(adminScript, /@nextcloud\/vue\/components\/NcButton/);
+  assert.match(adminScript, /@nextcloud\/vue\/components\/NcTextField/);
+  assert.match(adminScript, /@nextcloud\/vue\/components\/NcSelect/);
+  assert.match(adminScript, /import \{ createApp, h \} from 'vue';/);
+  assert.match(adminScript, /createApp\(AdminSettingsApp\)\.mount\(root\);/);
+  assert.doesNotMatch(adminScript, /new Vue\(/);
+  assert.match(adminScript, /modelValue: this\.isMimeEnabled\(mime\)/);
+  assert.match(adminScript, /'onUpdate:modelValue': enabled => this\.setMimeEnabled\(mime, enabled\)/);
+  assert.doesNotMatch(adminScript, /checked: this\.isMimeEnabled\(mime\)/);
   assert.match(adminScript, /import '\.\/adminSettings\.css';/);
   assert.match(adminScript, /createMimeGroups/);
   assert.match(adminScript, /filterMimeGroups/);
@@ -75,6 +81,9 @@ test('admin settings UI uses official Nextcloud Vue settings components', async 
   assert.doesNotMatch(adminScript, /type="checkbox"/);
   assert.doesNotMatch(adminScript, /Save MIME types/);
   assert.doesNotMatch(adminScript, /ariaLabel: 'Save MIME type settings'/);
+  assert.match(packageJson, /"@nextcloud\/vue":\s*"\^9\./);
+  assert.match(packageJson, /"vue":\s*"\^3\./);
+  assert.doesNotMatch(packageJson, /"@nextcloud\/viewer"/);
   assert.match(packageJson, /copy:admin-styles/);
   assert.match(copyStylesScript, /fileviewer-admin\.css/);
 });

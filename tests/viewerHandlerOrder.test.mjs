@@ -8,6 +8,25 @@ import {
   registerAndPromoteViewerHandler,
 } from '../src/viewerHandlerOrder.js';
 
+test('local viewer handler registration queues handlers for Nextcloud Viewer', async () => {
+  const registration = await import('../src/nextcloudViewerRegistration.js')
+    .catch(error => ({ error }));
+
+  assert.equal(registration.error, undefined, registration.error?.message);
+  const { registerHandler } = registration;
+  const win = {};
+  const handler = {
+    id: 'fileviewer',
+    mimes: ['application/pdf'],
+    component: {},
+  };
+
+  registerHandler(handler, win);
+
+  assert.ok(win._oca_viewer_handlers instanceof Map);
+  assert.equal(win._oca_viewer_handlers.get('fileviewer'), handler);
+});
+
 test('viewer handler promotion moves an existing handler ahead of built-in media handlers', () => {
   const viewer = {
     availableHandlers: [

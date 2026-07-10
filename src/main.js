@@ -1,6 +1,5 @@
 import { loadState } from '@nextcloud/initial-state';
 import { generateFilePath, generateUrl } from '@nextcloud/router';
-import { registerHandler } from '@nextcloud/viewer';
 
 import {
 	APP_ID,
@@ -23,6 +22,7 @@ import {
 } from './frameProtocol.js';
 import { createViewerGeoOptions } from './geoSettings.js';
 import { filterEnabledMimes } from './mimeSettings.js';
+import { registerHandler } from './nextcloudViewerRegistration.js';
 import { resolveFileExtension, resolveFileSource, resolveFilename } from './sourceResolution.js';
 import { SUPPORTED_MIMES } from './supportedFormats.generated.js';
 import { installViewerHandlerPromotion } from './viewerHandlerOrder.js';
