@@ -81,12 +81,13 @@ occ config:app:set fileviewer sandbox --value="allow-scripts allow-same-origin a
     <category>office</category>
     <website>https://github.com/devnoname120/nextcloud-file-viewer</website>
     <bugs>https://github.com/devnoname120/nextcloud-file-viewer/issues</bugs>
-	    <settings>
-	        <admin>OCA\FileViewer\Settings\AdminSettings</admin>
-	        <admin-section>OCA\FileViewer\Settings\AdminSection</admin-section>
-	    </settings>
+    <screenshot>https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/main/appinfo/screenshot.jpg</screenshot>
     <dependencies>
         <php min-version="8.2" max-version="8.5" />
         <nextcloud min-version="33" max-version="35" />
     </dependencies>
+    <settings>
+        <admin>OCA\FileViewer\Settings\AdminSettings</admin>
+        <admin-section>OCA\FileViewer\Settings\AdminSection</admin-section>
+    </settings>
 </info>
