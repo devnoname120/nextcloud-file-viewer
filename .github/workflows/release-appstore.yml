@@ -31,6 +31,18 @@ jobs:
           php-version: '8.2'
           coverage: none
 
+      - name: Verify release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -eu
+          app_version="$(php scripts/app-version.php get)"
+          release_version="${RELEASE_TAG#v}"
+          if [ "$app_version" != "$release_version" ]; then
+            echo "Release tag ${RELEASE_TAG} does not match app version ${app_version}"
+            exit 1
+          fi
+
       - name: Build release artifact
         run: make dist
 

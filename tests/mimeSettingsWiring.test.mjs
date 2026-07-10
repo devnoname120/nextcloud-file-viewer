@@ -45,6 +45,7 @@ test('admin settings live in a dedicated File Viewer settings section', async ()
   assert.match(adminSection, /return Application::APP_ID;/);
   assert.match(adminSection, /function getName\(\)/);
   assert.match(adminSection, /File Viewer/);
+  assert.match(adminSection, /imagePath\(Application::APP_ID, 'app\.png'\)/);
 });
 
 test('admin settings UI uses official Nextcloud Vue settings components', async () => {

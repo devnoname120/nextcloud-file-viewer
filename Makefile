@@ -48,7 +48,8 @@ prepare-release:
 		exit 1; \
 	fi
 	php scripts/app-version.php set "$(VERSION)"
-	@echo "Updated appinfo/info.xml to version $(VERSION)"
+	npm version "$(VERSION)" --no-git-tag-version --ignore-scripts --allow-same-version
+	@echo "Updated appinfo/info.xml, package.json, and package-lock.json to version $(VERSION)"
 
 dist: test build
 	rm -rf "$(STAGING_DIR)" "$(ARTIFACTS_DIR)"

@@ -11,13 +11,15 @@ test('app version helper reads, validates, and updates appinfo/info.xml', async 
 
   try {
     const sourceInfo = await readFile('appinfo/info.xml', 'utf8');
+    const sourceVersion = sourceInfo.match(/<version>([^<]+)<\/version>/)?.[1];
+    assert.ok(sourceVersion);
     await writeFile(tempInfo, sourceInfo);
 
     const readBefore = spawnSync('php', ['scripts/app-version.php', 'get', tempInfo], {
       encoding: 'utf8',
     });
     assert.equal(readBefore.status, 0, readBefore.stderr);
-    assert.equal(readBefore.stdout.trim(), '0.1.0');
+    assert.equal(readBefore.stdout.trim(), sourceVersion);
 
     const update = spawnSync('php', ['scripts/app-version.php', 'set', '9.8.7', tempInfo], {
       encoding: 'utf8',
@@ -48,6 +50,7 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.match(makefile, /APP_VERSION\s*:=\s*\$\(shell php scripts\/app-version\.php get\)/);
   assert.match(makefile, /APPSTORE_PACKAGE\s*:=\s*\$\(ARTIFACTS_DIR\)\/\$\(APP_ID\)-\$\(APP_VERSION\)\.tar\.gz/);
   assert.match(makefile, /RELEASE_PATHS\s*:=.*appinfo.*css.*img.*js.*lib.*templates.*viewer/);
+  assert.match(makefile, /npm version "\$\(VERSION\)" --no-git-tag-version --ignore-scripts --allow-same-version/);
   assert.match(makefile, /tar .* -C "\$\(STAGING_DIR\)" "\$\(APP_ID\)"/);
   assert.doesNotMatch(makefile, /RELEASE_PATHS\s*:=.*(?:src|tests|node_modules)/);
 
@@ -57,6 +60,9 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.match(workflow, /shivammathur\/setup-php@[0-9a-f]{40} # 2\.37\.2/);
   assert.match(workflow, /node-version:\s*24/);
   assert.doesNotMatch(workflow, /node-version:\s*20/);
+  assert.match(workflow, /name:\s*Verify release version/);
+  assert.match(workflow, /release_version="\$\{RELEASE_TAG#v\}"/);
+  assert.match(workflow, /does not match app version/);
   assert.match(workflow, /run:\s*make dist/);
   assert.match(workflow, /build\/artifacts\/fileviewer-\*\.tar\.gz/);
   assert.match(workflow, /app_name:\s*fileviewer/);
@@ -71,6 +77,12 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.equal(packageLock.packages[''].engines.npm, '>=10');
   assert.equal(packageLock.packages['node_modules/@nextcloud/viewer'], undefined);
   assert.equal(packageLock.packages['node_modules/@nextcloud/vue/node_modules/@nextcloud/initial-state'], undefined);
+
+  const appVersion = appInfo.match(/<version>([^<]+)<\/version>/)?.[1];
+  assert.ok(appVersion);
+  assert.equal(JSON.parse(packageJson).version, appVersion);
+  assert.equal(packageLock.version, appVersion);
+  assert.equal(packageLock.packages[''].version, appVersion);
 
   assert.match(appInfo, /<php min-version="8\.2" max-version="8\.5" \/>/);
   assert.match(appInfo, /<nextcloud min-version="33" max-version="35" \/>/);
