@@ -72,7 +72,7 @@ worker or WASM behavior, administrators can override it:
 occ config:app:set fileviewer sandbox --value="allow-scripts allow-same-origin allow-downloads allow-forms allow-modals allow-popups allow-presentation"
 ```
     ]]></description>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <licence>agpl</licence>
     <author homepage="https://github.com/devnoname120">devnoname120</author>
     <namespace>FileViewer</namespace>
