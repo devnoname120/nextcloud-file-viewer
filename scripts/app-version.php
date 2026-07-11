@@ -70,6 +70,22 @@ function setVersion(string $file, string $version): void {
 		fwrite(STDERR, "Could not update <version> tag in {$file}\n");
 		exit(1);
 	}
+
+	$screenshotUrl = 'https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v'
+		. $version
+		. '/appinfo/screenshot.jpg';
+	$updated = preg_replace(
+		'/(<screenshot>)[^<]+(<\/screenshot>)/',
+		'${1}' . $screenshotUrl . '${2}',
+		$updated,
+		1,
+		$screenshotCount,
+	);
+	if ($updated === null || $screenshotCount !== 1) {
+		fwrite(STDERR, "Could not update <screenshot> tag in {$file}\n");
+		exit(1);
+	}
+
 	if (@file_put_contents($file, $updated) === false) {
 		fwrite(STDERR, "Could not write {$file}\n");
 		exit(1);

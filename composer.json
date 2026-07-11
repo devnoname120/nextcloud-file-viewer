@@ -1,6 +1,6 @@
 {
   "name": "devnoname120/nextcloud-file-viewer",
-  "description": "Preview files in Nextcloud with Flyfish File Viewer",
+  "description": "Universal File Viewer for Nextcloud, powered by Flyfish File Viewer",
   "type": "project",
   "license": "AGPL-3.0-or-later",
   "autoload": {

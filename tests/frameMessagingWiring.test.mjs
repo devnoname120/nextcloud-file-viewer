@@ -9,17 +9,25 @@ test('frame communication requires a transferred MessagePort instead of iframe l
   ]);
 
   assert.match(mainSource, /created\(\) \{[\s\S]*?window\.addEventListener\('message', this\.onFrameMessage\)/);
-  assert.match(mainSource, /event\.ports\?\.length === 1/);
+  assert.match(mainSource, /const ports = Array\.from\(event\.ports \|\| \[\]\)/);
   assert.match(mainSource, /this\.attachFramePort\(port\)/);
   assert.match(mainSource, /if \(this\.framePort\) \{[\s\S]*?port\.close\(\);[\s\S]*?return;[\s\S]*?FRAME_READY_MESSAGE/);
   assert.match(mainSource, /this\.framePort\.postMessage\(createFrameLoadMessage/);
   assert.match(mainSource, /this\.connectedFrameSandbox !== this\.frameSandbox/);
-  assert.match(mainSource, /this\.destroyFrameConnection\(\);\s+this\.channel = createChannel\(\);\s+this\.frameSandboxMode = nextSandbox/);
+  assert.match(mainSource, /this\.destroyFrameConnection\(\);\s+this\.channel = createChannel\(\);[\s\S]*?this\.frameSandboxMode = nextSandbox/);
   assert.match(mainSource, /key: this\.channel/);
   assert.match(mainSource, /sandbox: this\.frameSandboxMode/);
-  assert.doesNotMatch(mainSource, /onFrameLoad|contentWindow\.postMessage/);
+  assert.match(mainSource, /onFrameLoad\(\)/);
+  assert.match(mainSource, /EPUB_BOOTSTRAP_NAVIGATE_MESSAGE/);
+  assert.match(mainSource, /event\.data\.type === FRAME_DOCUMENT_LOADED_MESSAGE/);
+  assert.match(mainSource, /!this\.frameRuntimeReady[\s\S]*?!this\.frameDocumentLoaded/);
+  assert.match(mainSource, /this\.frameNavigationArmed = true;[\s\S]*?this\.completeFrameConnection\(\)/);
 
   assert.match(frameSource, /var messageChannel = new MessageChannel\(\)/);
+  assert.match(frameSource, /window\.__fileViewerBootstrap/);
+  assert.match(frameSource, /post\('nextcloud-file-viewer:runtime-ready'\)/);
+  assert.match(frameSource, /post\('nextcloud-file-viewer:document-loaded'\)/);
+  assert.match(frameSource, /window\.setTimeout\(function \(\) \{[\s\S]*?document-loaded/);
   assert.match(frameSource, /postToParentWindow\('nextcloud-file-viewer:ready', null, \[messageChannel\.port2\]\)/);
   assert.match(frameSource, /parentPort\.postMessage\(createProtocolMessage/);
   assert.doesNotMatch(frameSource, /window\.addEventListener\('message'/);

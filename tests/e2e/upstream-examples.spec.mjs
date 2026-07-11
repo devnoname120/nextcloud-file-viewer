@@ -9,6 +9,7 @@ import {
   collectDeepText,
   createFileSampleFromPath,
   loadFileIntoSandbox,
+  mountEpubSandboxedFrame,
   mountSandboxedFrame,
   startStaticServer,
   waitForDeepMatch,
@@ -262,11 +263,11 @@ test.describe('upstream Flyfish viewer examples', () => {
 
       const channel = `upstream-${exampleCase.file.replace(/[^a-z0-9]+/gi, '-')}-${Date.now()}`;
       const extension = path.extname(exampleCase.file).toLowerCase().slice(1);
-      const frame = await mountSandboxedFrame(page, server, channel, {
-        sandbox: extension === 'epub'
-          ? `${DEFAULT_FRAME_SANDBOX} allow-same-origin`
-          : DEFAULT_FRAME_SANDBOX,
-      });
+      const frame = extension === 'epub'
+        ? (await mountEpubSandboxedFrame(page, server, channel)).frame
+        : await mountSandboxedFrame(page, server, channel, {
+          sandbox: DEFAULT_FRAME_SANDBOX,
+        });
       const workerInfoPromise = exampleCase.name === 'CAD DWG'
         ? waitForNextWorkerInfo(page, 90000)
         : null;

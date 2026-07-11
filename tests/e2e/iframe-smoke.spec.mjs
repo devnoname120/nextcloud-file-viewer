@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import {
   DEFAULT_FRAME_SANDBOX,
+  EPUB_BOOTSTRAP_SANDBOX,
+  createEpubDocumentCsp,
   createViewerDocumentCsp,
   createMinimalDocxBuffer,
   createMinimalEpubBuffer,
@@ -18,9 +20,10 @@ import {
   createMinimalXlsxBuffer,
   createZipBuffer,
   collectDeepText,
+  getEpubHandshakeState,
   loadFileIntoSandbox,
+  mountEpubSandboxedFrame,
   mountSandboxedFrame,
-  replaceSandboxedFrame,
   startStaticServer,
   waitForDeepMatch,
   waitForDeepText,
@@ -46,6 +49,85 @@ test('serves the viewer document with a child-specific worker and EPUB styleshee
   expect(expectedCsp).toMatch(/style-src [^;]* blob:/);
   expect(expectedCsp).toContain('worker-src blob:');
   expect(expectedCsp).not.toContain("worker-src 'self'");
+});
+
+test('serves a controller-equivalent EPUB bootstrap document and CSP', async ({ request }) => {
+  const response = await request.get(`${server.origin}/viewer/epub-bootstrap`);
+  const body = await response.text();
+  expect(response.ok()).toBe(true);
+  expect(response.headers()['content-security-policy']).toBe(createEpubDocumentCsp(server.origin));
+  expect(body).toContain('id="file-viewer-renderer-document"');
+  expect(body).toContain('src="/viewer/epub-bootstrap.js"');
+  expect(body).not.toContain('__FILE_VIEWER_RENDERER_DOCUMENT__');
+});
+
+test('commits the EPUB renderer to blob:null before restoring the strict outer sandbox', async ({ page, browserName }) => {
+  test.skip(!['chromium', 'firefox'].includes(browserName), 'The readable-probe success path is engine-specific.');
+  const channel = `iframe-epub-handshake-${Date.now()}`;
+  const { frame, state } = await mountEpubSandboxedFrame(page, server, channel);
+
+  expect(state.blocked).toBe(false);
+  expect(state.phase).toBe('connected');
+  expect(state.hasPort).toBe(true);
+  expect(state.connectionSequence).toBe(1);
+  expect(state.documentLoaded).toBe(true);
+  expect(state.runtimeReady).toBe(true);
+  expect(state.navigationArmed).toBe(true);
+  expect(state.frameLoadCount).toBeGreaterThanOrEqual(1);
+  expect(state.sandbox).toBe(EPUB_BOOTSTRAP_SANDBOX);
+  expect(state.commands).toEqual([
+    { transport: 'window', type: 'nextcloud-file-viewer:epub-bootstrap-navigate' },
+    { transport: 'port', type: 'nextcloud-file-viewer:epub-sandbox-probe' },
+    { transport: 'port', type: 'nextcloud-file-viewer:epub-renderer-start' },
+    { transport: 'port', type: 'nextcloud-file-viewer:connected' },
+  ]);
+  expect(state.messages.map(message => message?.type).filter(Boolean)).toEqual(expect.arrayContaining([
+    'nextcloud-file-viewer:epub-bootstrap-ready',
+    'nextcloud-file-viewer:epub-renderer-gate-ready',
+    'nextcloud-file-viewer:epub-sandbox-probe-result',
+    'nextcloud-file-viewer:runtime-ready',
+    'nextcloud-file-viewer:document-loaded',
+  ]));
+  expect(frame.url()).toMatch(/^blob:null\//);
+  expect(await frame.evaluate(() => self.origin)).toBe('null');
+  expect(await frame.evaluate(() => {
+    try {
+      void parent.document;
+      return { readable: true };
+    } catch (error) {
+      return { readable: false, errorName: error.name };
+    }
+  })).toEqual({ readable: false, errorName: 'SecurityError' });
+  await expect(page.locator('#viewer-frame')).toHaveAttribute('sandbox', EPUB_BOOTSTRAP_SANDBOX);
+});
+
+test('fails closed when WebKit cannot preserve readable EPUB chapters after sandbox restoration', async ({ page, browserName }) => {
+  test.skip(browserName !== 'webkit', 'This assertion covers WebKit secure fallback behavior.');
+  const channel = `iframe-epub-webkit-probe-${Date.now()}`;
+  const { frame, state } = await mountEpubSandboxedFrame(page, server, channel);
+
+  expect(frame?.url()).toMatch(/^blob:null\//);
+  expect(state.blocked).toBe(true);
+  expect(state.phase).toBe('blocked');
+  expect(state.hasPort).toBe(false);
+  expect(state.connectionSequence).toBe(0);
+  expect(state.documentLoaded).toBe(false);
+  expect(state.runtimeReady).toBe(false);
+  expect(state.navigationArmed).toBe(false);
+  expect(state.frameLoadCount).toBeGreaterThanOrEqual(1);
+  expect(state.sandbox).toBe(EPUB_BOOTSTRAP_SANDBOX);
+  expect(state.error).toContain('cannot render EPUB files without weakening Nextcloud origin isolation');
+  expect(state.messages).toContainEqual(expect.objectContaining({
+    type: 'nextcloud-file-viewer:epub-sandbox-probe-result',
+    channel,
+    readable: false,
+  }));
+  expect(state.commands).not.toContainEqual(expect.objectContaining({
+    type: 'nextcloud-file-viewer:epub-renderer-start',
+  }));
+  expect(state.commands).not.toContainEqual(expect.objectContaining({
+    type: 'nextcloud-file-viewer:connected',
+  }));
 });
 
 async function expectSandboxLocalWorker(page, workerInfoPromise) {
@@ -265,12 +347,11 @@ async function waitForVisibleEpubContent(frame, expected, timeout = 30000) {
   }, expected, { timeout });
 }
 
-test('renders styled EPUB chapter content in the EPUB sandboxed iframe', async ({ page }) => {
+test('renders styled EPUB chapter content after the opaque bootstrap handshake', async ({ page, browserName }) => {
+  test.skip(!['chromium', 'firefox'].includes(browserName), 'WebKit fails the EPUB sandbox probe closed.');
   const channel = `iframe-styled-epub-${Date.now()}`;
   const uniqueText = `styled EPUB chapter ${Date.now()}`;
-  const frame = await mountSandboxedFrame(page, server, channel, {
-    sandbox: `${DEFAULT_FRAME_SANDBOX} allow-same-origin`,
-  });
+  const { frame } = await mountEpubSandboxedFrame(page, server, channel);
 
   await loadFileIntoSandbox(page, channel, {
     filename: 'styled-smoke.epub',
@@ -325,12 +406,11 @@ test('renders styled EPUB chapter content in the EPUB sandboxed iframe', async (
   });
 });
 
-test('keeps scripted EPUB chapter content in a nested no-scripts sandbox', async ({ page }) => {
+test('keeps scripted EPUB chapter content in a nested no-scripts sandbox', async ({ page, browserName }) => {
+  test.skip(!['chromium', 'firefox'].includes(browserName), 'WebKit fails the EPUB sandbox probe closed.');
   const channel = `iframe-scripted-epub-${Date.now()}`;
   const uniqueText = `scripted EPUB security probe ${Date.now()}`;
-  const frame = await mountSandboxedFrame(page, server, channel, {
-    sandbox: `${DEFAULT_FRAME_SANDBOX} allow-same-origin`,
-  });
+  const { frame } = await mountEpubSandboxedFrame(page, server, channel);
 
   await page.evaluate(() => {
     window.__fileViewerEpubSecurityProbe = [];
@@ -387,40 +467,23 @@ test('keeps scripted EPUB chapter content in a nested no-scripts sandbox', async
   await expect.poll(() => page.evaluate(() => window.__fileViewerEpubSecurityProbe)).toEqual([]);
 });
 
-test('recreates the frame when crossing the EPUB sandbox boundary', async ({ page }) => {
-  const channel = `iframe-sandbox-transition-${Date.now()}`;
-  const epubText = `EPUB transition ${Date.now()}`;
-  const pdfText = `post-EPUB PDF ${Date.now()}`;
-  const initialFrame = await mountSandboxedFrame(page, server, channel);
-  expect(await initialFrame.evaluate(() => self.origin)).toBe('null');
+test('disconnects an EPUB channel after unexpected outer-frame navigation', async ({ page, browserName }) => {
+  test.skip(!['chromium', 'firefox'].includes(browserName), 'WebKit is already blocked by the sandbox probe.');
+  const channel = `iframe-epub-unexpected-navigation-${Date.now()}`;
+  const { frame, state } = await mountEpubSandboxedFrame(page, server, channel);
+  expect(state.phase).toBe('connected');
 
-  const epubFrame = await replaceSandboxedFrame(
-    page,
-    server,
-    channel,
-    `${DEFAULT_FRAME_SANDBOX} allow-same-origin`,
-  );
-  expect(await epubFrame.evaluate(() => self.origin)).toBe(server.origin);
-  await loadFileIntoSandbox(page, channel, {
-    filename: 'transition.epub',
-    mime: 'application/epub+zip',
-    bytes: createStyledEpubBuffer('Transition EPUB', epubText),
-  }, 15000);
-  await waitForVisibleEpubContent(epubFrame, epubText, 15000);
+  await frame.evaluate(target => {
+    location.replace(target);
+  }, `${server.origin}/__playwright-parent.html?unexpected=1`);
+  await page.waitForFunction(() => window.__fileViewerHandshakePhase === 'blocked');
 
-  const strictFrame = await replaceSandboxedFrame(page, server, channel, DEFAULT_FRAME_SANDBOX);
-  expect(await strictFrame.evaluate(() => self.origin)).toBe('null');
-  const workerInfoPromise = waitForNextWorkerInfo(page);
-  await loadFileIntoSandbox(page, channel, {
-    filename: 'after-epub.pdf',
-    mime: 'application/pdf',
-    bytes: createMinimalPdfBytes(pdfText),
-  });
-  await waitForDeepMatch(strictFrame, {
-    texts: [pdfText],
-    selectors: ['canvas'],
-  });
-  await expectSandboxLocalWorker(page, workerInfoPromise);
+  const blocked = await getEpubHandshakeState(page);
+  expect(blocked.blocked).toBe(true);
+  expect(blocked.hasPort).toBe(false);
+  expect(blocked.phase).toBe('blocked');
+  expect(blocked.frameLoadCount).toBe(state.frameLoadCount + 1);
+  expect(blocked.error).toContain('navigated unexpectedly and was disconnected');
 });
 
 async function getPresentationLayoutInfo(frame) {
@@ -757,10 +820,15 @@ f 1 2 3
 ];
 
 for (const rendererCase of rendererCases) {
-  test(`renders ${rendererCase.name} in the strict sandboxed iframe`, async ({ page }) => {
+  test(`renders ${rendererCase.name} in the strict sandboxed iframe`, async ({ page, browserName }) => {
     const channel = `iframe-${rendererCase.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
     const uniqueText = `smoke-${rendererCase.name.replace(/[^A-Za-z0-9]+/g, '-')}-${Date.now()}`;
-    const frame = await mountSandboxedFrame(page, server, channel);
+    if (rendererCase.name === 'EPUB') {
+      test.skip(!['chromium', 'firefox'].includes(browserName), 'WebKit fails the EPUB sandbox probe closed.');
+    }
+    const frame = rendererCase.name === 'EPUB'
+      ? (await mountEpubSandboxedFrame(page, server, channel)).frame
+      : await mountSandboxedFrame(page, server, channel);
     const workerInfoPromise = (
       rendererCase.name === 'Word OpenXML DOCX'
       || rendererCase.name === 'PowerPoint PPTX'

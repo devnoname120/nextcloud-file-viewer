@@ -8,6 +8,27 @@ const markdownMime = 'text/markdown';
 test.skip(!baseURL, 'NEXTCLOUD_BASE_URL is required for the live Nextcloud settings test.');
 test.describe.configure({ timeout: 90000 });
 
+test('admin geospatial basemap saves on selection change', async ({ page }) => {
+  await login(page);
+  await openFileViewerSettings(page);
+
+  const selectedBasemap = page.locator('#fileviewer-geo-settings-form .vs__selected').first();
+  const originalLabel = (await selectedBasemap.textContent() || '').trim();
+  const nextLabel = originalLabel === 'Offline empty basemap'
+    ? 'OpenFreeMap Liberty'
+    : 'Offline empty basemap';
+
+  await selectBasemap(page, nextLabel);
+  await expect(page.locator('#fileviewer-geo-settings-message')).toHaveText('Saved.', { timeout: 30000 });
+
+  await page.reload();
+  await expect(page.locator('#fileviewer-geo-settings-form')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('#fileviewer-geo-settings-form .vs__selected').first()).toHaveText(nextLabel);
+
+  await selectBasemap(page, originalLabel);
+  await expect(page.locator('#fileviewer-geo-settings-message')).toHaveText('Saved.', { timeout: 30000 });
+});
+
 test('admin MIME setting removes disabled MIME types from the fileviewer handler', async ({ page }) => {
   await login(page);
   await openFileViewerSettings(page);
@@ -40,14 +61,25 @@ async function login(page) {
 async function openFileViewerSettings(page) {
   await page.goto(`${baseURL}/settings/admin/fileviewer`);
   await dismissFirstRunWizard(page);
+  await expect(page.getByRole('heading', { name: 'Universal File Viewer', exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('link', { name: 'Universal File Viewer', exact: true })).toBeVisible();
   await expect(page.locator('#fileviewer-mime-settings-form')).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole('button', { name: 'Save MIME types' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save geospatial settings' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
   await expect(page.locator('link[href*="/fileviewer/css/fileviewer-admin.css"]')).toHaveCount(1);
-  await expect(page.locator('.settings-section').filter({ hasText: 'MIME types handled by File Viewer' })).toBeVisible();
+  await expect(page.locator('.settings-section').filter({ hasText: 'MIME types handled by Universal File Viewer' })).toBeVisible();
   await expect(page.locator('#fileviewer-mime-settings-form .checkbox-radio-switch').first()).toBeVisible();
   await expect(page.locator('#fileviewer-mime-settings-form .button-vue').first()).toBeVisible();
   await expect(page.locator('#fileviewer-mime-settings-form .input-field').first()).toBeVisible();
   await expectBulkButtonsToShareRow(page);
+}
+
+async function selectBasemap(page, label) {
+  const basemap = page.locator('#fileviewer-geo-basemap');
+  await basemap.click();
+  await page.locator('[role="option"]').filter({ hasText: label }).click();
+  await expect(page.locator('#fileviewer-geo-settings-form .vs__selected').first()).toHaveText(label);
 }
 
 async function setMimeEnabled(page, mime, enabled) {

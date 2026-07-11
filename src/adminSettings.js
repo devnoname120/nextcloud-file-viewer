@@ -31,6 +31,8 @@ import {
 } from './supportedFormats.generated.js';
 
 const root = document.getElementById('fileviewer-admin-settings');
+const GEO_SAVE_DEBOUNCE_MS = 500;
+const GEO_SETTINGS_KEYS = ['basemap', 'tileUrl', 'styleUrl', 'apiKey', 'attribution'];
 
 const AdminSettingsApp = {
 	name: 'FileViewerAdminSettings',
@@ -42,6 +44,9 @@ const AdminSettingsApp = {
 
 		return {
 			geoSettings: normalizeGeoSettings(loadState(APP_ID, 'adminGeoSettings', {})),
+			geoSaveQueued: false,
+			geoSaveTimer: null,
+			geoSettingsVersion: 0,
 			mimeSettings,
 			mimeFilter: '',
 			geoMessage: '',
@@ -51,6 +56,9 @@ const AdminSettingsApp = {
 			mimeSaveQueued: false,
 			mimeSettingsVersion: 0,
 		};
+	},
+	beforeUnmount() {
+		this.clearGeoSaveTimer();
 	},
 	computed: {
 		selectedBasemapOption() {
@@ -88,41 +96,102 @@ const AdminSettingsApp = {
 			this.updateGeoField('basemap', option?.value || GEO_BASEMAP_OPTIONS[0].value);
 		},
 		updateGeoField(key, value) {
-			this.geoSettings = normalizeGeoSettings({
+			const nextSettings = normalizeGeoSettings({
 				...this.geoSettings,
 				[key]: value,
 			});
-		},
-		async saveGeoSettings() {
-			const payload = normalizeGeoSettings(this.geoSettings);
-
-			this.geoMessage = '';
-			this.savingGeo = true;
-			try {
-				const response = await fetch(generateUrl('/apps/{APP_ID}/settings/geo', { APP_ID }), {
-					method: 'PUT',
-					credentials: 'same-origin',
-					headers: {
-						'Content-Type': 'application/json',
-						requesttoken: window.OC?.requestToken || '',
-					},
-					body: JSON.stringify(payload),
-				});
-				const data = await response.json().catch(() => ({}));
-				if (!response.ok) {
-					throw new Error(data.message || 'Failed to save File Viewer settings.');
-				}
-
-				this.geoSettings = normalizeGeoSettings(data.settings || payload);
-				this.geoMessage = 'Saved.';
-				console.info('[fileviewer] Saved geo settings', {
-					geo: data.geo || createViewerGeoOptions(payload),
-				});
-			} catch (error) {
-				this.geoMessage = error?.message || String(error);
-			} finally {
-				this.savingGeo = false;
+			if (this.areGeoSettingsEqual(nextSettings, this.geoSettings)) {
+				return;
 			}
+
+			this.geoSettings = nextSettings;
+			this.geoSettingsVersion += 1;
+			this.requestGeoSettingsSave(key === 'basemap');
+		},
+		areGeoSettingsEqual(left, right) {
+			return GEO_SETTINGS_KEYS.every(key => left[key] === right[key]);
+		},
+		geoSettingsValidationMessage(settings) {
+			if (settings.basemap === 'custom-raster' && settings.tileUrl === '') {
+				return 'Enter a raster tile URL to save.';
+			}
+			if (settings.basemap === 'custom-vector-style' && settings.styleUrl === '') {
+				return 'Enter a MapLibre style URL to save.';
+			}
+			return '';
+		},
+		clearGeoSaveTimer() {
+			if (this.geoSaveTimer !== null) {
+				window.clearTimeout(this.geoSaveTimer);
+				this.geoSaveTimer = null;
+			}
+		},
+		requestGeoSettingsSave(immediate = false) {
+			const validationMessage = this.geoSettingsValidationMessage(this.geoSettings);
+			this.clearGeoSaveTimer();
+			if (validationMessage) {
+				this.geoSaveQueued = false;
+				this.geoMessage = validationMessage;
+				return;
+			}
+
+			this.geoSaveQueued = true;
+			this.geoMessage = 'Saving...';
+			if (this.savingGeo) {
+				return;
+			}
+			if (immediate) {
+				void this.flushGeoSettingsSave();
+				return;
+			}
+
+			this.geoSaveTimer = window.setTimeout(() => {
+				this.geoSaveTimer = null;
+				void this.flushGeoSettingsSave();
+			}, GEO_SAVE_DEBOUNCE_MS);
+		},
+		async flushGeoSettingsSave() {
+			this.clearGeoSaveTimer();
+			if (this.savingGeo || !this.geoSaveQueued) {
+				return;
+			}
+
+			this.savingGeo = true;
+			while (this.geoSaveQueued) {
+				this.geoSaveQueued = false;
+				const version = this.geoSettingsVersion;
+				const payload = normalizeGeoSettings(this.geoSettings);
+
+				try {
+					const response = await fetch(generateUrl('/apps/{APP_ID}/settings/geo', { APP_ID }), {
+						method: 'PUT',
+						credentials: 'same-origin',
+						headers: {
+							'Content-Type': 'application/json',
+							requesttoken: window.OC?.requestToken || '',
+						},
+						body: JSON.stringify(payload),
+					});
+					const data = await response.json().catch(() => ({}));
+					if (!response.ok) {
+						throw new Error(data.message || 'Failed to save Universal File Viewer settings.');
+					}
+
+					if (version === this.geoSettingsVersion) {
+						this.geoSettings = normalizeGeoSettings(data.settings || payload);
+						this.geoMessage = 'Saved.';
+					}
+					console.info('[fileviewer] Saved geo settings', {
+						geo: data.geo || createViewerGeoOptions(payload),
+					});
+				} catch (error) {
+					if (version === this.geoSettingsVersion) {
+						this.geoMessage = error?.message || String(error);
+						this.geoSaveQueued = false;
+					}
+				}
+			}
+			this.savingGeo = false;
 		},
 		isMimeEnabled(mime) {
 			return !this.mimeSettings.disabledMimes.includes(mime);
@@ -202,7 +271,7 @@ const AdminSettingsApp = {
 					});
 					const data = await response.json().catch(() => ({}));
 					if (!response.ok) {
-						throw new Error(data.message || 'Failed to save File Viewer MIME settings.');
+						throw new Error(data.message || 'Failed to save Universal File Viewer MIME settings.');
 					}
 
 					if (version === this.mimeSettingsVersion) {
@@ -280,18 +349,10 @@ const AdminSettingsApp = {
 						id: 'fileviewer-geo-settings-form',
 						onSubmit: event => {
 							event.preventDefault();
-							void this.saveGeoSettings();
 						},
 					}, [
 						...fields,
 						h('div', { class: 'fileviewer-settings-actions' }, [
-							h(NcButton, {
-								variant: 'primary',
-								type: 'submit',
-								disabled: this.savingGeo,
-								ariaLabel: 'Save geospatial settings',
-								text: 'Save',
-							}),
 							h('span', {
 								id: 'fileviewer-geo-settings-message',
 								'aria-live': 'polite',
@@ -340,7 +401,7 @@ const AdminSettingsApp = {
 		},
 		renderMimeSettings(h) {
 			return h(NcSettingsSection, {
-				name: 'MIME types handled by File Viewer',
+				name: 'MIME types handled by Universal File Viewer',
 				description: 'Disable MIME types here to let Nextcloud use another viewer or fall back to download handling.',
 			}, {
 				default: () => [

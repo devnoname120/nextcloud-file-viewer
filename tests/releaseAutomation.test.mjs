@@ -28,6 +28,10 @@ test('app version helper reads, validates, and updates appinfo/info.xml', async 
 
     const updatedInfo = await readFile(tempInfo, 'utf8');
     assert.match(updatedInfo, /<version>9\.8\.7<\/version>/);
+    assert.match(
+      updatedInfo,
+      /<screenshot>https:\/\/raw\.githubusercontent\.com\/devnoname120\/nextcloud-file-viewer\/refs\/tags\/v9\.8\.7\/appinfo\/screenshot\.jpg<\/screenshot>/,
+    );
 
     const invalidUpdate = spawnSync('php', ['scripts/app-version.php', 'set', '9.8', tempInfo], {
       encoding: 'utf8',
@@ -44,8 +48,10 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   const workflow = await readFile('.github/workflows/release-appstore.yml', 'utf8');
   const packageJson = await readFile('package.json', 'utf8');
   const packageLock = JSON.parse(await readFile('package-lock.json', 'utf8'));
+  const composerJson = JSON.parse(await readFile('composer.json', 'utf8'));
   const npmConfig = await readFile('.npmrc', 'utf8');
   const appInfo = await readFile('appinfo/info.xml', 'utf8');
+  const appStoreScreenshot = await readFile('appinfo/screenshot.jpg');
   const readme = await readFile('README.md', 'utf8');
 
   assert.match(makefile, /^APP_ID\s*:=\s*fileviewer$/m);
@@ -93,6 +99,10 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.match(packageJson, /"@nextcloud\/vue":\s*"\^9\./);
   assert.match(packageJson, /"vue":\s*"\^3\./);
   const parsedPackageJson = JSON.parse(packageJson);
+  assert.equal(parsedPackageJson.name, 'nextcloud-file-viewer');
+  assert.equal(parsedPackageJson.description, 'Universal File Viewer for Nextcloud, powered by Flyfish File Viewer');
+  assert.equal(composerJson.name, 'devnoname120/nextcloud-file-viewer');
+  assert.equal(composerJson.description, 'Universal File Viewer for Nextcloud, powered by Flyfish File Viewer');
   assert.equal(parsedPackageJson.scripts['audit:production'], 'npm audit --omit=dev --audit-level=low');
   assert.equal(parsedPackageJson.scripts['verify:dependencies'], 'node scripts/verify-dependencies.mjs');
   assert.match(parsedPackageJson.scripts.build, /npm run verify:copied-assets$/);
@@ -119,6 +129,17 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
 
   assert.match(appInfo, /<php min-version="8\.2" max-version="8\.5" \/>/);
   assert.match(appInfo, /<nextcloud min-version="33" max-version="35" \/>/);
+  assert.match(appInfo, /<id>fileviewer<\/id>/);
+  assert.match(appInfo, /<name>Universal File Viewer<\/name>/);
+  assert.match(appInfo, /<namespace>FileViewer<\/namespace>/);
+  const appStoreScreenshotUrl = appInfo.match(/<screenshot>([^<]+)<\/screenshot>/)?.[1];
+  assert.equal(
+    appStoreScreenshotUrl,
+    `https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v${appVersion}/appinfo/screenshot.jpg`,
+  );
+  assert.ok(appStoreScreenshot.length > 10_000, 'App Store screenshot must not be empty');
+  assert.deepEqual([...appStoreScreenshot.subarray(0, 3)], [0xff, 0xd8, 0xff]);
+  assert.match(readme, /^# Universal File Viewer$/m);
 
   const description = appInfo.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)?.[1] || '';
   const expectedStoreDescription = readme.replace(

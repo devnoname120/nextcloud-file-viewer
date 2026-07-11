@@ -10,6 +10,11 @@ return [
 			'verb' => 'GET',
 		],
 		[
+			'name' => 'viewer#epubBootstrap',
+			'url' => '/viewer/epub-bootstrap',
+			'verb' => 'GET',
+		],
+		[
 			'name' => 'asset#show',
 			'url' => '/assets/{path}',
 			'verb' => 'GET',

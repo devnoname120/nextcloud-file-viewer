@@ -1,11 +1,22 @@
 export const APP_ID = 'fileviewer';
 
 export const FRAME_READY_MESSAGE = 'nextcloud-file-viewer:ready';
+export const FRAME_RUNTIME_READY_MESSAGE = 'nextcloud-file-viewer:runtime-ready';
+export const FRAME_DOCUMENT_LOADED_MESSAGE = 'nextcloud-file-viewer:document-loaded';
 export const FRAME_CONNECTED_MESSAGE = 'nextcloud-file-viewer:connected';
+export const EPUB_BOOTSTRAP_READY_MESSAGE = 'nextcloud-file-viewer:epub-bootstrap-ready';
+export const EPUB_BOOTSTRAP_NAVIGATE_MESSAGE = 'nextcloud-file-viewer:epub-bootstrap-navigate';
+export const EPUB_RENDERER_GATE_READY_MESSAGE = 'nextcloud-file-viewer:epub-renderer-gate-ready';
+export const EPUB_SANDBOX_PROBE_MESSAGE = 'nextcloud-file-viewer:epub-sandbox-probe';
+export const EPUB_SANDBOX_PROBE_RESULT_MESSAGE = 'nextcloud-file-viewer:epub-sandbox-probe-result';
+export const EPUB_RENDERER_START_MESSAGE = 'nextcloud-file-viewer:epub-renderer-start';
 export const FRAME_LOAD_MESSAGE = 'nextcloud-file-viewer:load';
 export const FRAME_LOADED_MESSAGE = 'nextcloud-file-viewer:loaded';
 export const FRAME_ERROR_MESSAGE = 'nextcloud-file-viewer:error';
 export const FRAME_CLOSE_REQUEST_MESSAGE = 'nextcloud-file-viewer:close-request';
+
+export const DEFAULT_FRAME_KIND = 'default';
+export const EPUB_FRAME_KIND = 'epub';
 
 export const DEFAULT_SANDBOX = [
   'allow-scripts',
@@ -16,18 +27,25 @@ export const DEFAULT_SANDBOX = [
   'allow-presentation',
 ].join(' ');
 
-export function addSandboxToken(sandbox, token) {
-  const tokens = new Set(String(sandbox || '').split(/\s+/).filter(Boolean));
-  tokens.add(token);
-  return Array.from(tokens).join(' ');
+export const EPUB_BOOTSTRAP_SANDBOX = 'allow-scripts';
+export const EPUB_RENDERER_SANDBOX = 'allow-scripts allow-same-origin';
+
+export function resolveFrameKind(extension) {
+  return String(extension || '').toLowerCase() === 'epub'
+    ? EPUB_FRAME_KIND
+    : DEFAULT_FRAME_KIND;
 }
 
 export function resolveFrameSandbox(sandbox, extension) {
-  if (String(extension || '').toLowerCase() === 'epub') {
-    return addSandboxToken(sandbox, 'allow-same-origin');
-  }
+  return resolveFrameKind(extension) === EPUB_FRAME_KIND
+    ? EPUB_BOOTSTRAP_SANDBOX
+    : sandbox;
+}
 
-  return sandbox;
+export function resolveRendererSandbox(sandbox, extension) {
+  return resolveFrameKind(extension) === EPUB_FRAME_KIND
+    ? EPUB_RENDERER_SANDBOX
+    : sandbox;
 }
 
 export function createChannel() {

@@ -21,7 +21,7 @@ class AdminSection implements IIconSection {
 	}
 
 	public function getName(): string {
-		return $this->l->t('File Viewer');
+		return $this->l->t('Universal File Viewer');
 	}
 
 	public function getPriority(): int {

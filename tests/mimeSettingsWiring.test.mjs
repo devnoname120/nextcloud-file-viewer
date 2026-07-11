@@ -27,7 +27,7 @@ test('MIME settings are exposed through admin state, save route, and viewer regi
   assert.match(mainScript, /mimes: enabledMimes/);
 });
 
-test('admin settings live in a dedicated File Viewer settings section', async () => {
+test('admin settings live in a dedicated Universal File Viewer settings section', async () => {
   const [
     appInfo,
     adminSettings,
@@ -44,7 +44,7 @@ test('admin settings live in a dedicated File Viewer settings section', async ()
   assert.match(adminSection, /function getID\(\)/);
   assert.match(adminSection, /return Application::APP_ID;/);
   assert.match(adminSection, /function getName\(\)/);
-  assert.match(adminSection, /File Viewer/);
+  assert.match(adminSection, /Universal File Viewer/);
   assert.match(adminSection, /imagePath\(Application::APP_ID, 'app-dark\.svg'\)/);
   assert.doesNotMatch(adminSection, /app\.png/);
 });
@@ -74,6 +74,7 @@ test('admin settings UI uses official Nextcloud Vue settings components', async 
   assert.match(adminScript, /flattenMimeGroups/);
   assert.match(adminScript, /MIMES_BY_EXTENSION/);
   assert.match(adminScript, /fileviewer-mime-group/);
+  assert.match(adminScript, /MIME types handled by Universal File Viewer/);
   assert.match(adminStyles, /\.fileviewer-mime-group/);
   assert.match(adminStyles, /\.fileviewer-mime-group-header/);
   assert.match(adminStyles, /\.fileviewer-settings-actions/);
@@ -83,6 +84,11 @@ test('admin settings UI uses official Nextcloud Vue settings components', async 
   assert.doesNotMatch(adminScript, /type="checkbox"/);
   assert.doesNotMatch(adminScript, /Save MIME types/);
   assert.doesNotMatch(adminScript, /ariaLabel: 'Save MIME type settings'/);
+  assert.doesNotMatch(adminScript, /ariaLabel: 'Save geospatial settings'/);
+  assert.doesNotMatch(adminScript, /text: 'Save'/);
+  assert.match(adminScript, /this\.requestGeoSettingsSave\(key === 'basemap'\)/);
+  assert.match(adminScript, /GEO_SAVE_DEBOUNCE_MS/);
+  assert.match(adminScript, /async flushGeoSettingsSave\(\)/);
   assert.match(packageJson, /"@nextcloud\/vue":\s*"\^9\./);
   assert.match(packageJson, /"vue":\s*"\^3\./);
   assert.doesNotMatch(packageJson, /"@nextcloud\/viewer"/);

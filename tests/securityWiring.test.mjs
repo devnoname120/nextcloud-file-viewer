@@ -31,6 +31,7 @@ test('frame CSP is added only on requests that load Viewer', async () => {
 
   assert.deepEqual(policyCalls, [
     "$policy->addAllowedFrameDomain('\\'self\\'');",
+    "$policy->addAllowedFrameDomain('blob:');",
   ]);
 });
 
@@ -90,7 +91,7 @@ namespace {
   assert.deepEqual(JSON.parse(stdout), {
     unmarkedPolicies: 0,
     markedPolicies: 1,
-    frameDomains: ["'self'"],
+    frameDomains: ["'self'", 'blob:'],
   });
 });
 
@@ -102,7 +103,9 @@ test('viewer document has its own worker and parser CSP', async () => {
   ]);
 
   assert.match(routes, /'name' => 'viewer#show'[\s\S]*?'url' => '\/viewer\/frame'/);
+  assert.match(routes, /'name' => 'viewer#epubBootstrap'[\s\S]*?'url' => '\/viewer\/epub-bootstrap'/);
   assert.match(mainSource, /generateUrl\('\/apps\/\{APP_ID\}\/viewer\/frame'/);
+  assert.match(mainSource, /generateUrl\('\/apps\/\{APP_ID\}\/viewer\/epub-bootstrap'/);
   assert.match(controller, /new EmptyContentSecurityPolicy\(\)/);
   assert.match(controller, /getServerProtocol\(\).*getServerHost\(\)/);
   assert.match(controller, /new DataDisplayResponse\(\$html\)/);
@@ -114,6 +117,10 @@ test('viewer document has its own worker and parser CSP', async () => {
   assert.equal(controller.includes("$policy->addAllowedScriptDomain('\\'unsafe-eval\\'');"), true);
   assert.match(controller, /allowEvalWasm/);
   assert.match(controller, /getAllowedCspOrigins\(\)/);
+  assert.match(controller, /public function epubBootstrap\(\): Response/);
+  assert.match(controller, /base64_encode\(\$rendererDocument\)/);
+  assert.match(controller, /epubContentSecurityPolicy\(\)/);
+  assert.match(controller, /addAllowedFormActionDomain\('\\'none\\''\)/);
 });
 
 test('settings actions retain AppFramework administrator and CSRF defaults', async () => {

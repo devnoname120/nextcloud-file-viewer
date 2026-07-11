@@ -1,10 +1,21 @@
 (function () {
   'use strict';
 
+  var runtimeScript = document.currentScript;
   var params = new URLSearchParams(window.location.search);
-  var channel = params.get('channel') || '';
-  var assetBase = resolveTrustedAssetBase(params.get('assetBase'));
-  var parentOrigin = window.location.origin;
+  var runtimeConfig = runtimeScript && runtimeScript.dataset ? runtimeScript.dataset : {};
+  var channel = runtimeConfig.channel || params.get('channel') || '';
+  var adoptedBootstrap = window.__fileViewerBootstrap;
+  try {
+    delete window.__fileViewerBootstrap;
+  } catch {
+    window.__fileViewerBootstrap = undefined;
+  }
+  var appOrigin = resolveTrustedAppOrigin(runtimeConfig.appOrigin || window.location.origin);
+  var assetBase = resolveTrustedAssetBase(runtimeConfig.assetBase || params.get('assetBase'));
+  var parentTargetOrigin = resolveParentTargetOrigin(
+    runtimeConfig.parentTargetOrigin || window.location.origin
+  );
   var isEmbedded = window.parent && window.parent !== window;
   var viewer = document.getElementById('viewer');
   var errorEl = document.getElementById('error');
@@ -24,7 +35,12 @@
   var sandboxWorkerObjectUrls = new Map();
   var sandboxWorkerPreparations = new Map();
   var activeSandboxWorkers = new Set();
-  var parentPort = null;
+  var parentPort = adoptedBootstrap
+    && adoptedBootstrap.channel === channel
+    && adoptedBootstrap.parentPort
+    && typeof adoptedBootstrap.parentPort.postMessage === 'function'
+    ? adoptedBootstrap.parentPort
+    : null;
   var parentPortConnected = false;
   var loadSequence = 0;
   var disposed = false;
@@ -52,7 +68,7 @@
       return;
     }
 
-    window.parent.postMessage(createProtocolMessage(type, data), parentOrigin, transfer || []);
+    window.parent.postMessage(createProtocolMessage(type, data), parentTargetOrigin, transfer || []);
   }
 
   function post(type, data) {
@@ -103,8 +119,36 @@
     return new URL(relativePath, assetBase).href;
   }
 
+  function resolveTrustedAppOrigin(value) {
+    try {
+      var url = new URL(value);
+      if (url.protocol === 'http:' || url.protocol === 'https:') {
+        return url.origin;
+      }
+    } catch {
+      // Fall through to the URL-backed origin used by direct frames.
+    }
+
+    return window.location.origin;
+  }
+
+  function resolveParentTargetOrigin(value) {
+    try {
+      var url = new URL(value);
+      if (url.origin === appOrigin) {
+        return url.origin;
+      }
+    } catch {
+      // Invalid targets are rejected below.
+    }
+
+    return appOrigin;
+  }
+
   function resolveTrustedAssetBase(value) {
-    var fallback = new URL('./file-viewer/', window.location.href).href;
+    var fallback = window.location.protocol === 'blob:'
+      ? ''
+      : new URL('./file-viewer/', window.location.href).href;
     if (!value) {
       return fallback;
     }
@@ -112,7 +156,7 @@
     try {
       var url = new URL(value, window.location.href);
       if (
-        url.origin === window.location.origin
+        url.origin === appOrigin
         && /\/apps\/fileviewer\/assets\/$/.test(url.pathname)
       ) {
         return url.href;
@@ -483,12 +527,17 @@
   }
 
   if (!isEmbedded) {
-    showError('File Viewer frame must be embedded in Nextcloud Viewer.');
+    showError('Universal File Viewer frame must be embedded in Nextcloud Viewer.');
     return;
   }
 
   if (!fileViewer) {
     showError('Flyfish File Viewer did not load.');
+    return;
+  }
+
+  if (!assetBase) {
+    showError('The Universal File Viewer asset location is invalid.');
     return;
   }
 
@@ -540,6 +589,13 @@
   }
 
   function announceReady() {
+    if (parentPort) {
+      parentPort.addEventListener('message', onParentPortMessage);
+      parentPort.start();
+      post('nextcloud-file-viewer:runtime-ready');
+      return;
+    }
+
     if (typeof MessageChannel !== 'function') {
       showError('This browser cannot create a secure file viewer channel.');
       return;
@@ -550,6 +606,14 @@
     parentPort.addEventListener('message', onParentPortMessage);
     parentPort.start();
     postToParentWindow('nextcloud-file-viewer:ready', null, [messageChannel.port2]);
+  }
+
+  function announceDocumentLoaded() {
+    // Delay one task so the embedding iframe's matching load event has already
+    // reached the parent before it arms its unexpected-navigation monitor.
+    window.setTimeout(function () {
+      post('nextcloud-file-viewer:document-loaded');
+    }, 0);
   }
 
   window.addEventListener('keydown', function (event) {
@@ -584,4 +648,9 @@
   });
 
   announceReady();
+  if (document.readyState === 'complete') {
+    announceDocumentLoaded();
+  } else {
+    window.addEventListener('load', announceDocumentLoaded, { once: true });
+  }
 }());

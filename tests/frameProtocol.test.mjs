@@ -3,12 +3,18 @@ import test from 'node:test';
 
 import {
   DEFAULT_SANDBOX,
+  DEFAULT_FRAME_KIND,
+  EPUB_BOOTSTRAP_SANDBOX,
+  EPUB_FRAME_KIND,
+  EPUB_RENDERER_SANDBOX,
   FRAME_CLOSE_REQUEST_MESSAGE,
   FRAME_LOAD_MESSAGE,
   FRAME_READY_MESSAGE,
   createFrameLoadMessage,
   isFrameMessage,
+  resolveFrameKind,
   resolveFrameSandbox,
+  resolveRendererSandbox,
   serializeError,
 } from '../src/frameProtocol.js';
 
@@ -17,21 +23,31 @@ test('default iframe sandbox keeps the child in an opaque origin', () => {
   assert.doesNotMatch(DEFAULT_SANDBOX, /allow-same-origin/);
 });
 
-test('EPUB sandbox adds same-origin access for epub.js chapter iframes', () => {
+test('EPUB bootstrap sandbox is always strict and opaque', () => {
   const resolvedSandbox = resolveFrameSandbox(DEFAULT_SANDBOX, 'epub');
 
-  assert.match(resolvedSandbox, /allow-scripts/);
-  assert.match(resolvedSandbox, /allow-same-origin/);
+  assert.equal(resolvedSandbox, EPUB_BOOTSTRAP_SANDBOX);
+  assert.equal(resolvedSandbox, 'allow-scripts');
+  assert.doesNotMatch(resolvedSandbox, /allow-same-origin/);
 });
 
 test('non-EPUB sandbox remains unchanged', () => {
   assert.equal(resolveFrameSandbox(DEFAULT_SANDBOX, 'pdf'), DEFAULT_SANDBOX);
 });
 
-test('sandbox resolver does not duplicate same-origin token', () => {
-  const resolvedSandbox = resolveFrameSandbox(`${DEFAULT_SANDBOX} allow-same-origin`, 'epub');
+test('EPUB renderer navigation gets only the same-origin capability epub.js requires', () => {
+  const configuredSandbox = `${DEFAULT_SANDBOX} allow-same-origin`;
 
-  assert.equal(resolvedSandbox.match(/allow-same-origin/g)?.length, 1);
+  assert.equal(resolveFrameSandbox(configuredSandbox, 'epub'), EPUB_BOOTSTRAP_SANDBOX);
+  assert.equal(resolveRendererSandbox(configuredSandbox, 'epub'), EPUB_RENDERER_SANDBOX);
+  assert.equal(EPUB_RENDERER_SANDBOX, 'allow-scripts allow-same-origin');
+  assert.equal(resolveRendererSandbox(configuredSandbox, 'pdf'), configuredSandbox);
+});
+
+test('frame kind distinguishes EPUB bootstrap documents from direct viewers', () => {
+  assert.equal(resolveFrameKind('EPUB'), EPUB_FRAME_KIND);
+  assert.equal(resolveFrameKind('pdf'), DEFAULT_FRAME_KIND);
+  assert.equal(resolveFrameKind(''), DEFAULT_FRAME_KIND);
 });
 
 test('frame load message carries only the explicit channel and file metadata', () => {

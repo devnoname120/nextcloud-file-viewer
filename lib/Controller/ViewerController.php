@@ -17,6 +17,7 @@ use OCP\IURLGenerator;
 
 class ViewerController extends Controller {
 	private const VIEWER_DOCUMENT = __DIR__ . '/../../viewer/index.html';
+	private const EPUB_BOOTSTRAP_DOCUMENT = __DIR__ . '/../../viewer/epub-bootstrap.html';
 
 	public function __construct(
 		IRequest $request,
@@ -29,10 +30,7 @@ class ViewerController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	public function show(): Response {
-		$html = file_get_contents(self::VIEWER_DOCUMENT);
-		if ($html === false) {
-			throw new \RuntimeException('The File Viewer document could not be loaded.');
-		}
+		$html = $this->readDocument(self::VIEWER_DOCUMENT, 'The Universal File Viewer document could not be loaded.');
 
 		$html = str_replace(
 			[
@@ -57,6 +55,48 @@ class ViewerController extends Controller {
 		$response->addHeader('Content-Disposition', 'inline; filename="viewer.html"');
 		$response->setContentSecurityPolicy($this->contentSecurityPolicy());
 		return $response;
+	}
+
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function epubBootstrap(): Response {
+		$html = $this->readDocument(
+			self::EPUB_BOOTSTRAP_DOCUMENT,
+			'The EPUB bootstrap document could not be loaded.',
+		);
+		$rendererDocument = $this->readDocument(
+			self::VIEWER_DOCUMENT,
+			'The EPUB renderer document could not be loaded.',
+		);
+
+		$html = str_replace(
+			[
+				'__FILE_VIEWER_RENDERER_DOCUMENT__',
+				'src="./epub-bootstrap.js"',
+			],
+			[
+				base64_encode($rendererDocument),
+				'src="' . $this->escapeUrl($this->urlGenerator->linkTo(
+					Application::APP_ID,
+					'viewer/epub-bootstrap.js',
+				)) . '"',
+			],
+			$html,
+		);
+
+		$response = new DataDisplayResponse($html);
+		$response->addHeader('Content-Type', 'text/html; charset=utf-8');
+		$response->addHeader('Content-Disposition', 'inline; filename="epub-bootstrap.html"');
+		$response->setContentSecurityPolicy($this->epubContentSecurityPolicy());
+		return $response;
+	}
+
+	private function readDocument(string $path, string $error): string {
+		$document = file_get_contents($path);
+		if ($document === false) {
+			throw new \RuntimeException($error);
+		}
+		return $document;
 	}
 
 	private function escapeUrl(string $url): string {
@@ -103,6 +143,37 @@ class ViewerController extends Controller {
 			$policy->addAllowedImageDomain($origin);
 			$policy->addAllowedFontDomain($origin);
 		}
+
+		if (method_exists($policy, 'allowEvalWasm')) {
+			$policy->allowEvalWasm();
+		}
+
+		return $policy;
+	}
+
+	private function epubContentSecurityPolicy(): EmptyContentSecurityPolicy {
+		$policy = new EmptyContentSecurityPolicy();
+		$appOrigin = $this->request->getServerProtocol() . '://' . $this->request->getServerHost();
+		$policy->addAllowedScriptDomain('\'self\'');
+		$policy->addAllowedScriptDomain($appOrigin);
+		$policy->addAllowedScriptDomain('\'unsafe-eval\'');
+		$policy->addAllowedStyleDomain('\'unsafe-inline\'');
+		$policy->addAllowedStyleDomain('blob:');
+		$policy->addAllowedImageDomain('data:');
+		$policy->addAllowedImageDomain('blob:');
+		$policy->addAllowedFontDomain('data:');
+		$policy->addAllowedFontDomain('blob:');
+		$policy->addAllowedConnectDomain('data:');
+		$policy->addAllowedConnectDomain('blob:');
+		$policy->addAllowedMediaDomain('data:');
+		$policy->addAllowedMediaDomain('blob:');
+		$policy->addAllowedObjectDomain('\'none\'');
+		$policy->addAllowedFrameDomain('\'self\'');
+		$policy->addAllowedFrameDomain('blob:');
+		$policy->addAllowedFrameAncestorDomain('\'self\'');
+		$policy->addAllowedFrameAncestorDomain($appOrigin);
+		$policy->addAllowedWorkerSrcDomain('blob:');
+		$policy->addAllowedFormActionDomain('\'none\'');
 
 		if (method_exists($policy, 'allowEvalWasm')) {
 			$policy->allowEvalWasm();

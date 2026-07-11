@@ -1,19 +1,20 @@
-# File Viewer
+# Universal File Viewer
 
-File Viewer is a Nextcloud app that registers [Flyfish File Viewer](https://github.com/flyfish-dev/file-viewer) as a handler for
+Universal File Viewer is a Nextcloud app that registers [Flyfish File Viewer](https://github.com/flyfish-dev/file-viewer) as a handler for
 the 200+ file types supported by Flyfish.
 
 The app renders files in a sandboxed iframe. The parent Nextcloud Viewer component
 fetches the selected file with the authenticated Viewer URL and transfers the file
 Blob over a document-bound `MessageChannel`. The default sandbox intentionally does
-not include `allow-same-origin` for most file types. The outer EPUB viewer adds
-`allow-same-origin` because EPUB.js must read its nested chapter iframe to finish
-layout. EPUB chapter content remains inside that nested iframe, which allows its
-origin but deliberately does not allow scripts.
+not include `allow-same-origin`. EPUB files use a two-stage bootstrap that commits
+the renderer to an opaque `blob:null` document before any file bytes are transferred.
+The renderer cannot read the parent Nextcloud document, while EPUB chapter content
+stays in a nested iframe that allows its own origin but deliberately does not allow
+scripts.
 
 ## Supported Formats
 
-File Viewer uses [Flyfish Viewer](https://github.com/flyfish-dev/file-viewer) and thus supports 200+ formats:
+Universal File Viewer uses [Flyfish Viewer](https://github.com/flyfish-dev/file-viewer) and thus supports 200+ formats:
 [supported formats](https://github.com/flyfish-dev/file-viewer/blob/main/README.en.md#supported-formats)
 matrix.
 
@@ -75,13 +76,26 @@ The default sandbox is:
 allow-scripts allow-downloads allow-forms allow-modals allow-popups allow-presentation
 ```
 
-For `.epub` files the app adds `allow-same-origin` to the outer viewer sandbox at
-runtime. Because the outer viewer URL is served by Nextcloud, its document is then
-same-origin with the parent Nextcloud page. Flyfish and EPUB.js render the untrusted
-chapter content in a second, nested iframe whose sandbox contains
-`allow-same-origin` but not `allow-scripts`. Chapter scripts and event handlers
-therefore cannot run. The browser test suite checks this invariant with a scripted
-EPUB; Flyfish and EPUB.js upgrades should be treated as security-sensitive changes.
+For `.epub` files, an HTTP bootstrap starts with the stricter `allow-scripts`
+sandbox and creates the final renderer Blob from a fixed application template. The
+parent briefly grants `allow-same-origin` only while that already-opaque bootstrap
+navigates to its `blob:null` URL. A small renderer gate establishes a
+document-bound `MessageChannel`; the parent then restores the strict sandbox before
+loading Flyfish or transferring the EPUB. The gate probes whether the browser can
+still create the readable nested chapter iframe EPUB.js requires. Chromium and
+Firefox pass this probe. Current WebKit/Safari fails closed with an explanatory
+error instead of retaining an outer sandbox configuration that could become
+same-origin after a later navigation.
+
+Flyfish and EPUB.js render untrusted chapter content in a nested iframe whose
+sandbox contains `allow-same-origin` but not `allow-scripts`, so chapter scripts and
+event handlers cannot run. The outer renderer remains opaque and cannot read the
+parent Nextcloud document. Once its final load is confirmed over the bound channel,
+any later outer-frame navigation disconnects and removes the viewer. The browser
+test suite checks the origin boundary, publisher styling, script isolation,
+fail-closed behavior, and unexpected-navigation handling; Flyfish and EPUB.js
+upgrades should be treated as security-sensitive changes.
+
 Other file types keep the configured outer sandbox unchanged. Switching across the
 EPUB boundary closes the old channel, rotates its token, and replaces the iframe so
 the browser applies the new origin policy to a fresh document.
@@ -94,15 +108,18 @@ workers have the opaque `null` origin. Libarchive formats use the same frame-own
 `blob:` isolation model. Smaller spreadsheet files parse on the iframe's main
 thread, which is also sandboxed.
 
-The only default-page CSP addition is `frame-src 'self'`, and it is added only to
-responses that dispatch Nextcloud's Viewer-loading event. The app does not add
-instance-wide worker, connection, blob, WebAssembly-eval, style, image, font, or
-media allowances. The iframe response has its own scoped CSP for its local assets,
+The only default-page CSP additions are `frame-src 'self' blob:`, and they are added
+only to responses that dispatch Nextcloud's Viewer-loading event. The app does not
+add instance-wide worker, connection, WebAssembly-eval, style, image, font, or media
+allowances. The direct iframe response has its own scoped CSP for local assets,
 frame-owned `blob:` workers, renderer-required evaluation and WebAssembly, and the
-configured geospatial tile origin.
+configured geospatial tile origin. The EPUB bootstrap uses a separate, narrower CSP
+without geospatial origins.
 
-If a deployment needs to trade isolation for compatibility with specific browser
-worker or WASM behavior, administrators can override it:
+If a deployment needs to trade isolation for non-EPUB compatibility with specific
+browser worker or WASM behavior, administrators can override the general sandbox.
+EPUB always uses the hardened bootstrap and does not fall back to a same-origin
+Nextcloud document:
 
 ```bash
 occ config:app:set fileviewer sandbox --value="allow-scripts allow-same-origin allow-downloads allow-forms allow-modals allow-popups allow-presentation"

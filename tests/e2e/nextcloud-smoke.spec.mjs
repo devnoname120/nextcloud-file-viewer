@@ -5,6 +5,7 @@ import {
   createMinimalDocxBuffer,
   createMinimalPptxBuffer,
   createMinimalPsdBytes,
+  createStyledEpubBuffer,
   createZipBuffer,
   waitForDeepMatch,
 } from './helpers.mjs';
@@ -51,7 +52,7 @@ const liveCases = [
 
 for (const liveCase of liveCases) {
   test(`opens a ${liveCase.name} file through the real Nextcloud Viewer using fileviewer`, async ({ page, request }) => {
-    const uniqueText = `Nextcloud File Viewer ${liveCase.name} smoke ${Date.now()}`;
+    const uniqueText = `Universal File Viewer ${liveCase.name} smoke ${Date.now()}`;
     const fileName = `fileviewer-smoke-${Date.now()}.${liveCase.extension}`;
     const fileId = await uploadFileAndReadFileId(request, {
       fileName,
@@ -71,8 +72,116 @@ for (const liveCase of liveCases) {
   });
 }
 
+test('renders EPUB from an opaque Blob without exposing the Nextcloud origin', async ({ page, request, browserName }) => {
+  test.skip(browserName === 'webkit', 'WebKit cannot create readable EPUB.js chapter frames after strict sandbox restoration.');
+
+  const uniqueText = `Universal File Viewer opaque EPUB ${Date.now()}`;
+  const fileName = `fileviewer-opaque-${Date.now()}.epub`;
+  const fileId = await uploadFileAndReadFileId(request, {
+    fileName,
+    mime: 'application/epub+zip',
+    data: createStyledEpubBuffer('Opaque EPUB smoke', uniqueText),
+  });
+
+  await login(page);
+  const frame = await openFileById(page, fileId, fileName);
+  await waitForVisibleEpubContent(frame, uniqueText, 60000);
+
+  expect(frame.url()).toMatch(/^blob:null\//);
+  expect(await frame.evaluate(() => self.origin)).toBe('null');
+  expect(await frame.evaluate(() => {
+    try {
+      void parent.document.body;
+      return false;
+    } catch (error) {
+      return error?.name === 'SecurityError';
+    }
+  })).toBe(true);
+
+  const outer = page.locator('iframe[src*="/fileviewer/viewer/epub-bootstrap"]').first();
+  await expect(outer).toHaveAttribute('sandbox', 'allow-scripts');
+  await expect.poll(() => frame.evaluate(expectedText => {
+    function findAllDeep(node, selector, matches = []) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.matches(selector)) {
+        matches.push(node);
+      }
+      if (node.shadowRoot) {
+        findAllDeep(node.shadowRoot, selector, matches);
+      }
+      for (const child of node.childNodes) {
+        findAllDeep(child, selector, matches);
+      }
+      return matches;
+    }
+
+    const chapterFrame = findAllDeep(document, '.epub-stage iframe, .epub-view iframe, iframe')
+      .find(iframe => {
+        try {
+          return (iframe.contentDocument?.body?.innerText || '').includes(expectedText);
+        } catch {
+          return false;
+        }
+      });
+    const chapterDocument = chapterFrame?.contentDocument;
+    const chapterBody = chapterDocument?.querySelector('.chapter-body');
+    const publisherStylesheet = chapterDocument?.querySelector('link[rel="stylesheet"]');
+    if (!chapterFrame || !chapterBody || !publisherStylesheet) {
+      return null;
+    }
+
+    const style = getComputedStyle(chapterBody);
+    return {
+      chapterSandbox: chapterFrame.getAttribute('sandbox'),
+      publisherStylesheetLoaded: Boolean(publisherStylesheet.sheet),
+      publisherStylesheetUsesBlob: publisherStylesheet.href.startsWith('blob:'),
+      borderLeftWidth: style.borderLeftWidth,
+      borderLeftStyle: style.borderLeftStyle,
+      paddingLeft: style.paddingLeft,
+    };
+  }, uniqueText), { timeout: 60000 }).toEqual({
+    chapterSandbox: 'allow-same-origin',
+    publisherStylesheetLoaded: true,
+    publisherStylesheetUsesBlob: true,
+    borderLeftWidth: '4px',
+    borderLeftStyle: 'solid',
+    paddingLeft: '16px',
+  });
+
+  await frame.evaluate(target => {
+    location.replace(target);
+  }, new URL('/apps/files/', baseURL).href);
+  await expect(page.getByRole('alert').filter({
+    hasText: 'navigated unexpectedly and was disconnected',
+  })).toBeVisible({ timeout: 15000 });
+  await expect(outer).toHaveCount(0);
+});
+
+test('fails closed when an engine cannot preserve EPUB chapter isolation', async ({ page, request, browserName }) => {
+  test.skip(browserName !== 'webkit', 'The compatibility failure is specific to current WebKit.');
+
+  const fileName = `fileviewer-webkit-isolation-${Date.now()}.epub`;
+  const fileId = await uploadFileAndReadFileId(request, {
+    fileName,
+    mime: 'application/epub+zip',
+    data: createStyledEpubBuffer('WebKit isolation probe', 'This content must not be transferred.'),
+  });
+
+  await login(page);
+  const directUrl = new URL(`/apps/files/files/${encodeURIComponent(fileId)}`, baseURL);
+  directUrl.searchParams.set('dir', '/');
+  directUrl.searchParams.set('editing', 'false');
+  directUrl.searchParams.set('openfile', 'true');
+  await page.goto(directUrl.href);
+  await dismissFirstRunWizard(page);
+
+  await expect(page.getByRole('alert').filter({
+    hasText: 'cannot render EPUB files without weakening Nextcloud origin isolation',
+  })).toBeVisible({ timeout: 45000 });
+  await expect(page.locator('iframe[src*="/fileviewer/viewer/epub-bootstrap"]')).toHaveCount(0);
+});
+
 test('closes the real Nextcloud viewer when Escape is pressed inside the fileviewer iframe', async ({ page, request }) => {
-  const uniqueText = `Nextcloud File Viewer Escape smoke ${Date.now()}`;
+  const uniqueText = `Universal File Viewer Escape smoke ${Date.now()}`;
   const fileName = `fileviewer-escape-${Date.now()}.md`;
   const fileId = await uploadFileAndReadFileId(request, {
     fileName,
@@ -92,7 +201,7 @@ test('closes the real Nextcloud viewer when Escape is pressed inside the filevie
 });
 
 test('opens a public single-file share with the shared filename extension', async ({ page, request }) => {
-  const uniqueText = `Nextcloud File Viewer public share smoke ${Date.now()}`;
+  const uniqueText = `Universal File Viewer public share smoke ${Date.now()}`;
   const fileName = `fileviewer-public-share-${Date.now()}.md`;
   await uploadFileAndReadFileId(request, {
     fileName,
@@ -213,15 +322,47 @@ async function openFileById(page, fileId, fileName) {
 async function waitForFileViewerFrame(page, timeout) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    const frame = page.frames().find(candidate => candidate.url().includes('/fileviewer/viewer/frame'));
-    if (frame) {
-      return frame;
+    const handles = await page.locator([
+      'iframe[src*="/fileviewer/viewer/frame"]',
+      'iframe[src*="/fileviewer/viewer/epub-bootstrap"]',
+    ].join(', ')).elementHandles();
+    for (const handle of handles) {
+      const frame = await handle.contentFrame();
+      if (frame && frame.url() !== 'about:blank') {
+        return frame;
+      }
     }
     await page.waitForTimeout(100);
   }
 
   const iframeUrls = await page.locator('iframe').evaluateAll(iframes => iframes.map(iframe => iframe.src));
   throw new Error(`Fileviewer iframe did not finish loading. iframe srcs: ${iframeUrls.join(', ') || '(none)'}`);
+}
+
+async function waitForVisibleEpubContent(frame, expected, timeout = 30000) {
+  await frame.waitForFunction(text => {
+    function findAllDeep(node, selector, matches = []) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.matches(selector)) {
+        matches.push(node);
+      }
+      if (node.shadowRoot) {
+        findAllDeep(node.shadowRoot, selector, matches);
+      }
+      for (const child of node.childNodes) {
+        findAllDeep(child, selector, matches);
+      }
+      return matches;
+    }
+
+    return findAllDeep(document, '.epub-stage iframe, .epub-view iframe, iframe')
+      .some(iframe => {
+        try {
+          return (iframe.contentDocument?.body?.innerText || '').includes(text);
+        } catch {
+          return false;
+        }
+      });
+  }, expected, { timeout });
 }
 
 async function dismissFirstRunWizard(page) {

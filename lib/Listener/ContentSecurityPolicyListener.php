@@ -26,6 +26,7 @@ class ContentSecurityPolicyListener implements IEventListener {
 
 		$policy = new EmptyContentSecurityPolicy();
 		$policy->addAllowedFrameDomain('\'self\'');
+		$policy->addAllowedFrameDomain('blob:');
 
 		$event->addPolicy($policy);
 	}

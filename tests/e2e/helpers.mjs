@@ -4,6 +4,9 @@ import http from 'node:http';
 import path from 'node:path';
 
 export const DEFAULT_FRAME_SANDBOX = 'allow-scripts allow-downloads allow-forms allow-modals allow-popups allow-presentation';
+export const EPUB_BOOTSTRAP_SANDBOX = 'allow-scripts';
+export const EPUB_RENDERER_SANDBOX = 'allow-scripts allow-same-origin';
+
 export function createViewerDocumentCsp(origin) {
   return [
     "default-src 'none'",
@@ -18,6 +21,24 @@ export function createViewerDocumentCsp(origin) {
     `frame-ancestors 'self' ${origin}`,
     'worker-src blob:',
     `form-action 'self' ${origin}`,
+  ].join('; ');
+}
+
+export function createEpubDocumentCsp(origin) {
+  return [
+    "default-src 'none'",
+    "base-uri 'none'",
+    `script-src 'self' ${origin} 'unsafe-eval' 'wasm-unsafe-eval'`,
+    "style-src 'unsafe-inline' blob:",
+    'img-src data: blob:',
+    'font-src data: blob:',
+    'connect-src data: blob:',
+    'media-src data: blob:',
+    "object-src 'none'",
+    "frame-src 'self' blob:",
+    `frame-ancestors 'self' ${origin}`,
+    'worker-src blob:',
+    "form-action 'none'",
   ].join('; ');
 }
 
@@ -36,6 +57,10 @@ const contentTypes = new Map([
 
 export async function startStaticServer(rootDir) {
   const root = path.resolve(rootDir);
+  const [epubBootstrapTemplate, viewerDocument] = await Promise.all([
+    readFile(path.join(root, 'viewer/epub-bootstrap.html'), 'utf8'),
+    readFile(path.join(root, 'viewer/index.html'), 'utf8'),
+  ]);
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url || '/', 'http://127.0.0.1');
@@ -49,10 +74,36 @@ export async function startStaticServer(rootDir) {
         return;
       }
 
+      if (url.pathname === '/viewer/epub-bootstrap') {
+        const origin = `http://${request.headers.host}`;
+        const body = epubBootstrapTemplate.replace(
+          '__FILE_VIEWER_RENDERER_DOCUMENT__',
+          Buffer.from(viewerDocument, 'utf8').toString('base64'),
+        ).replace(
+          'src="./epub-bootstrap.js"',
+          'src="/viewer/epub-bootstrap.js"',
+        );
+        response.writeHead(200, {
+          'Cache-Control': 'no-store',
+          'Content-Length': Buffer.byteLength(body),
+          'Content-Security-Policy': createEpubDocumentCsp(origin),
+          'Content-Type': 'text/html; charset=utf-8',
+        });
+        response.end(body);
+        return;
+      }
+
       const assetPrefix = '/apps/fileviewer/assets/';
       const isCorsAsset = url.pathname.startsWith(assetPrefix);
+      const assetPath = isCorsAsset
+        ? decodeURIComponent(url.pathname.slice(assetPrefix.length))
+        : '';
+      const runtimePaths = new Map([
+        ['runtime/frame.js', 'viewer/frame.js'],
+        ['runtime/epub-renderer-gate.js', 'viewer/epub-renderer-gate.js'],
+      ]);
       const relativePath = isCorsAsset
-        ? `viewer/file-viewer/${decodeURIComponent(url.pathname.slice(assetPrefix.length))}`
+        ? runtimePaths.get(assetPath) || `viewer/file-viewer/${assetPath}`
         : decodeURIComponent(url.pathname).replace(/^\/+/, '');
       let filePath = path.resolve(root, relativePath);
       if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) {
@@ -236,35 +287,220 @@ export async function mountSandboxedFrame(page, server, channel, options = {}) {
   return frame;
 }
 
-export async function replaceSandboxedFrame(page, server, channel, sandbox) {
+export async function mountEpubSandboxedFrame(page, server, channel, options = {}) {
   const assetBase = `${server.origin}/apps/fileviewer/assets/`;
-  const previousSequence = await page.evaluate(() => window.__fileViewerConnectionSequence);
-  await page.evaluate(({ expectedChannel, nextSandbox, nextAssetBase }) => {
-    const current = document.getElementById('viewer-frame');
-    const replacement = document.createElement('iframe');
-    replacement.id = 'viewer-frame';
-    replacement.setAttribute('sandbox', nextSandbox);
-    replacement.setAttribute('credentialless', '');
-    replacement.setAttribute('referrerpolicy', 'no-referrer');
-    replacement.setAttribute('allow', 'fullscreen');
-    replacement.src = `/viewer/index.html?channel=${encodeURIComponent(expectedChannel)}&assetBase=${encodeURIComponent(nextAssetBase)}`;
-    current.replaceWith(replacement);
-  }, {
-    expectedChannel: channel,
-    nextSandbox: sandbox,
-    nextAssetBase: assetBase,
-  });
+  const timeout = options.timeout || 30000;
+  await page.goto(`${server.origin}/__playwright-parent.html`);
+  await page.setContent(`
+    <!doctype html>
+    <html>
+      <body style="margin:0">
+        <script>
+          window.__fileViewerMessages = [];
+          window.__fileViewerParentCommands = [];
+          window.__fileViewerPort = null;
+          window.__fileViewerFrameWindow = null;
+          window.__fileViewerConnectionSequence = 0;
+          window.__fileViewerHandshakeErrors = 0;
+          window.__fileViewerHandshakePhase = 'epub-bootstrap';
+          window.__fileViewerFrameLoadCount = 0;
+          window.__fileViewerFrameLoadPhases = [];
+          window.__fileViewerDocumentLoaded = false;
+          window.__fileViewerRuntimeReady = false;
+          window.__fileViewerNavigationArmed = false;
+          window.__fileViewerBlocked = false;
+          window.__fileViewerError = null;
+          const expectedChannel = ${JSON.stringify(channel)};
+          const strictSandbox = ${JSON.stringify(EPUB_BOOTSTRAP_SANDBOX)};
+          const rendererSandbox = ${JSON.stringify(EPUB_RENDERER_SANDBOX)};
 
-  await page.waitForFunction(expected => window.__fileViewerConnectionSequence > expected, previousSequence);
-  const frame = page.frames().find(candidate => candidate.url().includes(`/viewer/index.html?channel=${channel}`));
-  if (!frame) {
-    throw new Error(`Replacement viewer iframe for channel ${channel} was not found`);
+          const recordCommand = (transport, type) => {
+            window.__fileViewerParentCommands.push({ transport, type });
+          };
+          const closePort = () => {
+            if (!window.__fileViewerPort) return;
+            window.__fileViewerPort.removeEventListener('message', onPortMessage);
+            window.__fileViewerPort.close();
+            window.__fileViewerPort = null;
+          };
+          const block = message => {
+            closePort();
+            window.__fileViewerBlocked = true;
+            window.__fileViewerHandshakePhase = 'blocked';
+            window.__fileViewerError = message;
+          };
+          const postPortCommand = type => {
+            if (!window.__fileViewerPort) {
+              block('The EPUB security handshake was disconnected.');
+              return;
+            }
+            recordCommand('port', type);
+            window.__fileViewerPort.postMessage({ type, channel: expectedChannel });
+          };
+          const completeConnectionIfReady = () => {
+            if (
+              window.__fileViewerHandshakePhase !== 'epub-renderer'
+              || !window.__fileViewerDocumentLoaded
+              || !window.__fileViewerRuntimeReady
+            ) {
+              return;
+            }
+
+            window.__fileViewerNavigationArmed = true;
+            window.__fileViewerHandshakePhase = 'connected';
+            recordCommand('port', 'nextcloud-file-viewer:connected');
+            window.__fileViewerPort.postMessage({
+              type: 'nextcloud-file-viewer:connected',
+              channel: expectedChannel,
+            });
+            window.__fileViewerConnectionSequence += 1;
+          };
+          const onPortMessage = event => {
+            const data = event.data;
+            window.__fileViewerMessages.push(data);
+            if (!data || data.channel !== expectedChannel || typeof data.type !== 'string') {
+              return;
+            }
+
+            if (data.type === 'nextcloud-file-viewer:epub-sandbox-probe-result') {
+              if (
+                window.__fileViewerHandshakePhase !== 'epub-sandbox-probe'
+                || typeof data.readable !== 'boolean'
+              ) {
+                return;
+              }
+              if (!data.readable) {
+                block('This browser cannot render EPUB files without weakening Nextcloud origin isolation.');
+                return;
+              }
+              window.__fileViewerHandshakePhase = 'epub-renderer';
+              postPortCommand('nextcloud-file-viewer:epub-renderer-start');
+              return;
+            }
+
+            if (
+              data.type === 'nextcloud-file-viewer:runtime-ready'
+              && window.__fileViewerHandshakePhase === 'epub-renderer'
+            ) {
+              window.__fileViewerRuntimeReady = true;
+              completeConnectionIfReady();
+              return;
+            }
+
+            if (
+              data.type === 'nextcloud-file-viewer:document-loaded'
+              && window.__fileViewerHandshakePhase === 'epub-renderer'
+            ) {
+              window.__fileViewerDocumentLoaded = true;
+              completeConnectionIfReady();
+              return;
+            }
+
+            if (data.type === 'nextcloud-file-viewer:error') {
+              block(data.error?.message || 'The sandboxed file viewer failed to initialize.');
+            }
+          };
+
+          window.addEventListener('message', event => {
+            window.__fileViewerMessages.push(event.data);
+            const data = event.data;
+            const iframe = document.getElementById('viewer-frame');
+            if (
+              !iframe
+              || event.source !== iframe.contentWindow
+              || event.origin !== 'null'
+              || !data
+              || data.channel !== expectedChannel
+              || typeof data.type !== 'string'
+            ) {
+              for (const port of event.ports) port.close();
+              return;
+            }
+
+            if (
+              data.type === 'nextcloud-file-viewer:epub-bootstrap-ready'
+              && window.__fileViewerHandshakePhase === 'epub-bootstrap'
+              && event.ports.length === 0
+            ) {
+              iframe.setAttribute('sandbox', rendererSandbox);
+              window.__fileViewerHandshakePhase = 'epub-gate';
+              recordCommand('window', 'nextcloud-file-viewer:epub-bootstrap-navigate');
+              iframe.contentWindow.postMessage({
+                type: 'nextcloud-file-viewer:epub-bootstrap-navigate',
+                channel: expectedChannel,
+              }, '*');
+              return;
+            }
+
+            if (
+              data.type === 'nextcloud-file-viewer:epub-renderer-gate-ready'
+              && window.__fileViewerHandshakePhase === 'epub-gate'
+              && event.ports.length === 1
+            ) {
+              iframe.setAttribute('sandbox', strictSandbox);
+              window.__fileViewerPort = event.ports[0];
+              window.__fileViewerFrameWindow = event.source;
+              window.__fileViewerPort.addEventListener('message', onPortMessage);
+              window.__fileViewerPort.start();
+              window.__fileViewerHandshakePhase = 'epub-sandbox-probe';
+              postPortCommand('nextcloud-file-viewer:epub-sandbox-probe');
+              return;
+            }
+
+            for (const port of event.ports) port.close();
+          });
+
+          const onFrameLoad = () => {
+            window.__fileViewerFrameLoadCount += 1;
+            window.__fileViewerFrameLoadPhases.push(window.__fileViewerHandshakePhase);
+            if (window.__fileViewerNavigationArmed) {
+              block('The sandboxed file viewer navigated unexpectedly and was disconnected.');
+            }
+          };
+        </script>
+        <iframe
+          id="viewer-frame"
+          sandbox="${EPUB_BOOTSTRAP_SANDBOX}"
+          credentialless
+          referrerpolicy="no-referrer"
+          allow="fullscreen"
+          src="${server.origin}/viewer/epub-bootstrap?channel=${channel}&assetBase=${encodeURIComponent(assetBase)}"
+          style="width:1024px;height:768px;border:0"
+          onload="onFrameLoad()"
+        ></iframe>
+      </body>
+    </html>
+  `);
+
+  await page.waitForFunction(() => (
+    window.__fileViewerHandshakePhase === 'connected'
+    || window.__fileViewerHandshakePhase === 'blocked'
+  ), null, { timeout });
+
+  const state = await getEpubHandshakeState(page);
+  const frame = page.frames().find(candidate => candidate.url().startsWith('blob:null/')) || null;
+  if (!state.blocked && !frame) {
+    throw new Error(`EPUB renderer frame for channel ${channel} was not found`);
   }
-  await frame.waitForFunction(() => (
-    document.readyState === 'complete'
-    && Boolean(window.FlyfishFileViewerWebFull)
-  ));
-  return frame;
+  return { frame, state };
+}
+
+export async function getEpubHandshakeState(page) {
+  return page.evaluate(() => ({
+    blocked: window.__fileViewerBlocked,
+    commands: [...window.__fileViewerParentCommands],
+    connectionSequence: window.__fileViewerConnectionSequence,
+    documentLoaded: window.__fileViewerDocumentLoaded,
+    error: window.__fileViewerError,
+    frameLoadCount: window.__fileViewerFrameLoadCount,
+    frameLoadPhases: [...window.__fileViewerFrameLoadPhases],
+    hasPort: Boolean(window.__fileViewerPort),
+    messages: [...window.__fileViewerMessages],
+    navigationArmed: window.__fileViewerNavigationArmed,
+    phase: window.__fileViewerHandshakePhase,
+    runtimeReady: window.__fileViewerRuntimeReady,
+    sandbox: document.getElementById('viewer-frame')?.getAttribute('sandbox') || '',
+  }));
 }
 
 export async function loadFileIntoSandbox(page, channel, sample, timeout = 30000) {

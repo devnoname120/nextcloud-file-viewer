@@ -17,6 +17,10 @@ use OCP\IRequest;
 
 class AssetController extends Controller {
 	private const ASSET_ROOT = __DIR__ . '/../../viewer/file-viewer';
+	private const RUNTIME_ASSETS = [
+		'runtime/epub-renderer-gate.js' => __DIR__ . '/../../viewer/epub-renderer-gate.js',
+		'runtime/frame.js' => __DIR__ . '/../../viewer/frame.js',
+	];
 
 	private const CONTENT_TYPES = [
 		'css' => 'text/css; charset=utf-8',
@@ -71,6 +75,11 @@ class AssetController extends Controller {
 		$relativePath = ltrim(str_replace('\\', '/', $path), '/');
 		if ($relativePath === '' || str_contains($relativePath, '..')) {
 			return null;
+		}
+
+		if (isset(self::RUNTIME_ASSETS[$relativePath])) {
+			$file = realpath(self::RUNTIME_ASSETS[$relativePath]);
+			return $file !== false && is_file($file) ? $file : null;
 		}
 
 		$root = realpath(self::ASSET_ROOT);

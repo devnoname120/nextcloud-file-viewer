@@ -11,4 +11,8 @@ test('asset controller serves worker assets with a WebAssembly-capable CSP', asy
   assert.match(source, /addAllowedConnectDomain\('\\'self\\''\)/);
   assert.match(source, /addAllowedWorkerSrcDomain\('\\'self\\''\)/);
   assert.match(source, /allowEvalWasm/);
+  assert.match(source, /'runtime\/epub-renderer-gate\.js' => .*viewer\/epub-renderer-gate\.js/);
+  assert.match(source, /'runtime\/frame\.js' => .*viewer\/frame\.js/);
+  assert.match(source, /addHeader\('Access-Control-Allow-Origin', '\*'\)/);
+  assert.match(source, /addHeader\('Cross-Origin-Resource-Policy', 'cross-origin'\)/);
 });

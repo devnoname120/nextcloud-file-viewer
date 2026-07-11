@@ -2,17 +2,28 @@ import { loadState } from '@nextcloud/initial-state';
 import { generateUrl } from '@nextcloud/router';
 
 import {
-	APP_ID,
+  APP_ID,
   DEFAULT_SANDBOX,
+  EPUB_BOOTSTRAP_NAVIGATE_MESSAGE,
+  EPUB_BOOTSTRAP_READY_MESSAGE,
+  EPUB_FRAME_KIND,
+  EPUB_RENDERER_GATE_READY_MESSAGE,
+  EPUB_RENDERER_START_MESSAGE,
+  EPUB_SANDBOX_PROBE_MESSAGE,
+  EPUB_SANDBOX_PROBE_RESULT_MESSAGE,
   FRAME_CLOSE_REQUEST_MESSAGE,
   FRAME_CONNECTED_MESSAGE,
   FRAME_ERROR_MESSAGE,
+  FRAME_DOCUMENT_LOADED_MESSAGE,
   FRAME_LOADED_MESSAGE,
   FRAME_READY_MESSAGE,
+  FRAME_RUNTIME_READY_MESSAGE,
   createChannel,
   createFrameLoadMessage,
   isFrameMessage,
+  resolveFrameKind,
   resolveFrameSandbox,
+  resolveRendererSandbox,
   serializeError,
 } from './frameProtocol.js';
 import { createViewerGeoOptions } from './geoSettings.js';
@@ -23,6 +34,7 @@ import { SUPPORTED_MIMES } from './supportedFormats.generated.js';
 import { installViewerHandlerPromotion } from './viewerHandlerOrder.js';
 
 const viewerFramePath = generateUrl('/apps/{APP_ID}/viewer/frame', { APP_ID });
+const epubBootstrapFramePath = generateUrl('/apps/{APP_ID}/viewer/epub-bootstrap', { APP_ID });
 const viewerAssetBasePath = generateUrl('/apps/{APP_ID}/assets/', { APP_ID });
 const sandbox = loadState(APP_ID, 'sandbox', DEFAULT_SANDBOX);
 const geo = loadState(APP_ID, 'geo', createViewerGeoOptions());
@@ -64,11 +76,19 @@ const FileViewerComponent = {
   data() {
     return {
       channel: createChannel(),
+      connectedFrameKind: null,
       connectedFrameSandbox: null,
       error: null,
+      frameBlocked: false,
+      frameHandshakePhase: null,
+      frameDocumentLoaded: false,
       frameIsReady: false,
+      frameKindMode: null,
+      frameNavigationArmed: false,
       framePort: null,
+      frameProfileSandboxMode: null,
       frameSandboxMode: null,
+      frameRuntimeReady: false,
       requestController: null,
     };
   },
@@ -77,7 +97,10 @@ const FileViewerComponent = {
       return new URL(viewerAssetBasePath, window.location.href).href;
     },
     frameUrl() {
-      const url = new URL(viewerFramePath, window.location.href);
+      const framePath = this.frameKindMode === EPUB_FRAME_KIND
+        ? epubBootstrapFramePath
+        : viewerFramePath;
+      const url = new URL(framePath, window.location.href);
       url.searchParams.set('channel', this.channel);
       url.searchParams.set('assetBase', this.assetBaseUrl);
       return url.href;
@@ -94,12 +117,21 @@ const FileViewerComponent = {
     resolvedExtension() {
       return resolveFileExtension(this.resolvedFilename);
     },
+    frameKind() {
+      return resolveFrameKind(this.resolvedExtension);
+    },
     frameSandbox() {
       return resolveFrameSandbox(sandbox, this.resolvedExtension);
     },
+    rendererSandbox() {
+      return resolveRendererSandbox(sandbox, this.resolvedExtension);
+    },
   },
   created() {
+    this.frameKindMode = this.frameKind;
+    this.frameProfileSandboxMode = this.frameSandbox;
     this.frameSandboxMode = this.frameSandbox;
+    this.frameHandshakePhase = this.initialFrameHandshakePhase(this.frameKindMode);
     window.addEventListener('message', this.onFrameMessage);
   },
   beforeDestroy() {
@@ -114,17 +146,28 @@ const FileViewerComponent = {
       this.abortRequest();
       this.destroyFrameConnection();
     },
-    attachFramePort(port) {
+    attachFramePort(port, connect = true) {
       if (this.framePort) {
         port.close();
         return;
       }
 
       this.framePort = port;
-      this.connectedFrameSandbox = this.frameSandboxMode;
+      this.connectedFrameKind = this.frameKindMode;
+      this.connectedFrameSandbox = this.frameProfileSandboxMode;
       port.addEventListener('message', this.onFramePortMessage);
       port.start();
-      port.postMessage({
+      if (connect) {
+        this.completeFrameConnection();
+      }
+    },
+    completeFrameConnection() {
+      if (!this.framePort) {
+        return;
+      }
+
+      this.frameHandshakePhase = 'connected';
+      this.framePort.postMessage({
         type: FRAME_CONNECTED_MESSAGE,
         channel: this.channel,
       });
@@ -137,25 +180,59 @@ const FileViewerComponent = {
         this.framePort = null;
       }
       this.frameIsReady = false;
+      this.frameDocumentLoaded = false;
+      this.frameNavigationArmed = false;
+      this.frameRuntimeReady = false;
+      this.connectedFrameKind = null;
       this.connectedFrameSandbox = null;
     },
+    initialFrameHandshakePhase(frameKind) {
+      return frameKind === EPUB_FRAME_KIND ? 'epub-bootstrap' : 'viewer';
+    },
     ensureFrameSandbox() {
+      const nextKind = this.frameKind;
       const nextSandbox = this.frameSandbox;
-      if (this.frameSandboxMode === nextSandbox) {
+      if (
+        this.frameKindMode === nextKind
+        && this.frameProfileSandboxMode === nextSandbox
+      ) {
         return false;
       }
 
       // Sandbox flags are fixed for the lifetime of the active document.
-      // Rotate the channel and key so Vue replaces the iframe before the new
-      // file can cross the EPUB same-origin boundary in either direction.
+      // Rotate the channel and key so Vue replaces the iframe before a file
+      // can cross between the direct and EPUB bootstrap security profiles.
       this.abortRequest();
       this.destroyFrameConnection();
       this.channel = createChannel();
+      this.frameBlocked = false;
+      this.frameKindMode = nextKind;
+      this.frameDocumentLoaded = false;
+      this.frameNavigationArmed = false;
+      this.frameRuntimeReady = false;
+      this.frameProfileSandboxMode = nextSandbox;
       this.frameSandboxMode = nextSandbox;
+      this.frameHandshakePhase = this.initialFrameHandshakePhase(nextKind);
       this.error = null;
       return true;
     },
     onFileChanged() {
+      if (this.frameBlocked) {
+        this.abortRequest();
+        this.destroyFrameConnection();
+        this.channel = createChannel();
+        this.frameBlocked = false;
+        this.frameDocumentLoaded = false;
+        this.frameNavigationArmed = false;
+        this.frameRuntimeReady = false;
+        this.frameKindMode = this.frameKind;
+        this.frameProfileSandboxMode = this.frameSandbox;
+        this.frameSandboxMode = this.frameSandbox;
+        this.frameHandshakePhase = this.initialFrameHandshakePhase(this.frameKindMode);
+        this.error = null;
+        return;
+      }
+
       if (!this.ensureFrameSandbox()) {
         void this.loadFileIntoFrame();
       }
@@ -169,6 +246,7 @@ const FileViewerComponent = {
     async loadFileIntoFrame() {
       if (
         !this.frameIsReady
+        || this.connectedFrameKind !== this.frameKind
         || this.connectedFrameSandbox !== this.frameSandbox
       ) {
         return;
@@ -202,7 +280,7 @@ const FileViewerComponent = {
           filename: this.resolvedFilename,
           mime: this.mime || blob.type,
           size: blob.size,
-          geo,
+          geo: this.connectedFrameKind === EPUB_FRAME_KIND ? undefined : geo,
         }));
       } catch (reason) {
         if (reason?.name === 'AbortError') {
@@ -229,33 +307,223 @@ const FileViewerComponent = {
     },
     onFrameMessage(event) {
       const frame = this.$refs.frame;
-      if (!frame || event.source !== frame.contentWindow || !isFrameMessage(event.data, this.channel)) {
+      if (!frame || event.source !== frame.contentWindow) {
+        return;
+      }
+
+      if (
+        event.origin !== this.expectedFrameMessageOrigin()
+        || !isFrameMessage(event.data, this.channel)
+      ) {
+        this.closeTransferredPorts(event);
         return;
       }
 
       if (this.framePort) {
-        for (const port of event.ports || []) {
-          port.close();
-        }
+        this.closeTransferredPorts(event);
+        return;
+      }
+
+      if (
+        this.frameKindMode === EPUB_FRAME_KIND
+        && event.data.type === EPUB_BOOTSTRAP_READY_MESSAGE
+      ) {
+        this.handleEpubBootstrapReady(frame, event);
+        return;
+      }
+
+      if (
+        this.frameKindMode === EPUB_FRAME_KIND
+        && event.data.type === EPUB_RENDERER_GATE_READY_MESSAGE
+      ) {
+        this.handleEpubRendererGateReady(frame, event);
         return;
       }
 
       if (event.data.type === FRAME_READY_MESSAGE) {
-        const port = event.ports?.length === 1 ? event.ports[0] : null;
+        const expectedPhase = this.frameKindMode === EPUB_FRAME_KIND
+          ? 'epub-renderer'
+          : 'viewer';
+        if (this.frameHandshakePhase !== expectedPhase) {
+          this.closeTransferredPorts(event);
+          return;
+        }
+
+        const ports = Array.from(event.ports || []);
+        const port = ports.length === 1 ? ports[0] : null;
         if (!port) {
+          ports.forEach(transferredPort => transferredPort.close());
           this.handleError('The sandboxed file viewer did not provide a secure communication channel.');
           return;
         }
+
         this.attachFramePort(port);
         return;
       }
 
       if (event.data.type === FRAME_ERROR_MESSAGE) {
-        this.handleError(event.data.error || 'The sandboxed file viewer failed to initialize.');
+        const reason = event.data.error || 'The sandboxed file viewer failed to initialize.';
+        if (this.frameKindMode === EPUB_FRAME_KIND && this.frameHandshakePhase !== 'connected') {
+          this.blockFrame(reason);
+          return;
+        }
+        this.handleError(reason);
       }
+    },
+    expectedFrameMessageOrigin() {
+      if (this.frameKindMode === EPUB_FRAME_KIND) {
+        return 'null';
+      }
+
+      const tokens = new Set(String(this.frameSandboxMode || '').split(/\s+/).filter(Boolean));
+      return tokens.has('allow-same-origin') ? window.location.origin : 'null';
+    },
+    closeTransferredPorts(event) {
+      for (const port of event.ports || []) {
+        port.close();
+      }
+    },
+    handleEpubBootstrapReady(frame, event) {
+      if (this.frameHandshakePhase !== 'epub-bootstrap') {
+        this.closeTransferredPorts(event);
+        return;
+      }
+      if ((event.ports || []).length !== 0) {
+        this.closeTransferredPorts(event);
+        this.blockFrame('The EPUB bootstrap sent an invalid security handshake.');
+        return;
+      }
+
+      this.frameSandboxMode = this.rendererSandbox;
+      frame.setAttribute('sandbox', this.frameSandboxMode);
+      if (frame.getAttribute('sandbox') !== this.frameSandboxMode) {
+        this.blockFrame('The EPUB renderer sandbox could not be prepared.');
+        return;
+      }
+
+      this.frameHandshakePhase = 'epub-gate';
+      frame.contentWindow.postMessage({
+        type: EPUB_BOOTSTRAP_NAVIGATE_MESSAGE,
+        channel: this.channel,
+      }, '*');
+    },
+    handleEpubRendererGateReady(frame, event) {
+      const ports = Array.from(event.ports || []);
+      if (this.frameHandshakePhase !== 'epub-gate') {
+        this.closeTransferredPorts(event);
+        return;
+      }
+      if (ports.length !== 1) {
+        this.closeTransferredPorts(event);
+        this.blockFrame('The EPUB renderer did not provide a secure communication channel.');
+        return;
+      }
+
+      // The Blob committed with the renderer sandbox. Restore the strict
+      // attribute before loading Flyfish or transferring file bytes, then
+      // verify that this engine still lets EPUB.js create readable chapters.
+      this.frameSandboxMode = this.frameProfileSandboxMode;
+      frame.setAttribute('sandbox', this.frameSandboxMode);
+      if (frame.getAttribute('sandbox') !== this.frameSandboxMode) {
+        ports[0].close();
+        this.blockFrame('The EPUB viewer sandbox could not be restored.');
+        return;
+      }
+
+      this.attachFramePort(ports[0], false);
+      this.frameHandshakePhase = 'epub-sandbox-probe';
+      this.postEpubGateCommand(EPUB_SANDBOX_PROBE_MESSAGE);
+    },
+    handleEpubSandboxProbeResult(data) {
+      if (
+        this.frameHandshakePhase !== 'epub-sandbox-probe'
+        || typeof data.readable !== 'boolean'
+      ) {
+        return;
+      }
+
+      if (data.readable) {
+        this.frameHandshakePhase = 'epub-renderer';
+        this.postEpubGateCommand(EPUB_RENDERER_START_MESSAGE);
+        return;
+      }
+
+      this.blockFrame('This browser cannot render EPUB files without weakening Nextcloud origin isolation.');
+    },
+    postEpubGateCommand(type) {
+      if (!this.framePort) {
+        this.blockFrame('The EPUB security handshake was disconnected.');
+        return;
+      }
+
+      this.framePort.postMessage({
+        type,
+        channel: this.channel,
+      });
+    },
+    onFrameLoad() {
+      if (!this.frameNavigationArmed) {
+        return;
+      }
+
+      this.blockFrame('The sandboxed file viewer navigated unexpectedly and was disconnected.');
+    },
+    blockFrame(reason) {
+      this.abortRequest();
+      this.destroyFrameConnection();
+      this.frameBlocked = true;
+      this.frameHandshakePhase = 'blocked';
+      this.handleError(reason);
     },
     onFramePortMessage(event) {
       if (event.target !== this.framePort || !isFrameMessage(event.data, this.channel)) {
+        return;
+      }
+
+      if (
+        this.frameKindMode === EPUB_FRAME_KIND
+        && event.data.type === EPUB_SANDBOX_PROBE_RESULT_MESSAGE
+      ) {
+        this.handleEpubSandboxProbeResult(event.data);
+        return;
+      }
+
+      if (
+        this.frameKindMode === EPUB_FRAME_KIND
+        && event.data.type === FRAME_RUNTIME_READY_MESSAGE
+        && this.frameHandshakePhase === 'epub-renderer'
+      ) {
+        this.frameRuntimeReady = true;
+        this.completeEpubFrameConnectionIfReady();
+        return;
+      }
+
+      if (event.data.type === FRAME_DOCUMENT_LOADED_MESSAGE) {
+        const expectedPhase = this.frameKindMode === EPUB_FRAME_KIND
+          ? 'epub-renderer'
+          : 'connected';
+        if (this.frameHandshakePhase !== expectedPhase) {
+          return;
+        }
+        this.frameDocumentLoaded = true;
+        if (this.frameKindMode === EPUB_FRAME_KIND) {
+          this.completeEpubFrameConnectionIfReady();
+        } else {
+          this.frameNavigationArmed = true;
+        }
+        return;
+      }
+
+      if (event.data.type === FRAME_ERROR_MESSAGE) {
+        if (this.frameHandshakePhase !== 'connected') {
+          this.blockFrame(event.data.error || 'The sandboxed file viewer failed to initialize.');
+          return;
+        }
+        this.handleError(event.data.error || 'The sandboxed file viewer failed to load the file.');
+        return;
+      }
+
+      if (this.frameHandshakePhase !== 'connected') {
         return;
       }
 
@@ -269,10 +537,19 @@ const FileViewerComponent = {
         this.closeViewer();
         return;
       }
-
-      if (event.data.type === FRAME_ERROR_MESSAGE) {
-        this.handleError(event.data.error || 'The sandboxed file viewer failed to load the file.');
+    },
+    completeEpubFrameConnectionIfReady() {
+      if (
+        this.frameKindMode !== EPUB_FRAME_KIND
+        || this.frameHandshakePhase !== 'epub-renderer'
+        || !this.frameRuntimeReady
+        || !this.frameDocumentLoaded
+      ) {
+        return;
       }
+
+      this.frameNavigationArmed = true;
+      this.completeFrameConnection();
     },
   },
   watch: {
@@ -293,8 +570,9 @@ const FileViewerComponent = {
     },
   },
   render(h) {
-    const children = [
-      h('iframe', {
+    const children = [];
+    if (!this.frameBlocked) {
+      children.push(h('iframe', {
         key: this.channel,
         ref: 'frame',
         attrs: {
@@ -311,8 +589,11 @@ const FileViewerComponent = {
           border: 'none',
           display: 'block',
         },
-      }),
-    ];
+        on: {
+          load: this.onFrameLoad,
+        },
+      }));
+    }
 
     if (this.error) {
       children.push(h('div', {
