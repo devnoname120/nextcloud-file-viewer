@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace OCA\FileViewer\Settings;
 
 use OCA\FileViewer\AppInfo\Application;
+use OCA\FileViewer\Service\FormatSettings;
 use OCA\FileViewer\Service\GeoSettings;
-use OCA\FileViewer\Service\MimeSettings;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\Settings\ISettings;
@@ -16,13 +16,13 @@ class AdminSettings implements ISettings {
 	public function __construct(
 		private IInitialState $initialState,
 		private GeoSettings $geoSettings,
-		private MimeSettings $mimeSettings,
+		private FormatSettings $formatSettings,
 	) {
 	}
 
 	public function getForm(): TemplateResponse {
 		$this->initialState->provideInitialState('adminGeoSettings', $this->geoSettings->getSettings());
-		$this->initialState->provideInitialState('adminMimeSettings', $this->mimeSettings->getSettings());
+		$this->initialState->provideInitialState('adminFormatSettings', $this->formatSettings->getSettings());
 		Util::addStyle(Application::APP_ID, 'fileviewer-admin');
 		Util::addScript(Application::APP_ID, 'fileviewer-admin');
 

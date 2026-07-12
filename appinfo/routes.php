@@ -26,8 +26,8 @@ return [
 				'verb' => 'PUT',
 			],
 			[
-				'name' => 'settings#saveMimes',
-				'url' => '/settings/mimes',
+				'name' => 'settings#saveFormats',
+				'url' => '/settings/formats',
 				'verb' => 'PUT',
 			],
 		],

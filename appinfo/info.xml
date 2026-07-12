@@ -56,6 +56,29 @@ matrix.
 | Video | `mp4`, `webm`, `m3u8` |
 | Fonts, design assets, and data | `ttf`, `otf`, `woff`, `woff2`, `psd`, `ai`, `eps`, `sqlite`, `wasm`, `parquet`, `avro`, `webarchive` |
 
+## File format settings
+
+The administration page exposes human-readable format groups such as JPEG (`.jpg`,
+`.jpeg`), Markdown (`.md`, `.markdown`), and EPUB (`.epub`). It does not expose raw
+MIME type strings.
+
+Universal File Viewer keeps Flyfish's supported-extension inventory, then resolves
+those extensions through Nextcloud's effective extension-to-MIME mapping using
+`OCP\Files\IMimeTypeDetector::getAllMappings()`. During installation, upgrades, and
+re-enabling, the app adds fallback mappings for supported extensions that are absent
+from both Nextcloud core and the administrator's `mimetypemapping.json`.
+Administrator entries always win. The app tracks its exact additions, yields when
+Nextcloud later gains a core mapping, and removes only unchanged app-owned entries during uninstall. The
+resulting deduplicated MIME types are used internally when registering the Viewer
+handler.
+
+When several supported extensions resolve to the same MIME type, Nextcloud Viewer
+cannot dispatch them independently. The settings page therefore combines them into
+one option and lists every affected extension. Shared aliases keep their format name,
+such as JPEG, while distinct formats use an explicit label such as `DOC/DOT`. Saved
+preferences use stable app-specific format identifiers; existing `disabled_mimes`
+preferences are migrated against the current Nextcloud mapping.
+
 ## Sandbox
 
 The default sandbox is:
@@ -113,7 +136,7 @@ Nextcloud document:
 occ config:app:set fileviewer sandbox --value="allow-scripts allow-same-origin allow-downloads allow-forms allow-modals allow-popups allow-presentation"
 ```
     ]]></description>
-    <version>0.3.1</version>
+    <version>0.4.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author homepage="https://github.com/devnoname120">devnoname120</author>
     <namespace>FileViewer</namespace>
@@ -129,11 +152,22 @@ occ config:app:set fileviewer sandbox --value="allow-scripts allow-same-origin a
     <discussion>https://github.com/devnoname120/nextcloud-file-viewer/discussions</discussion>
     <bugs>https://github.com/devnoname120/nextcloud-file-viewer/issues</bugs>
     <repository type="git">https://github.com/devnoname120/nextcloud-file-viewer.git</repository>
-    <screenshot small-thumbnail="https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v0.3.1/appinfo/screenshot-small.jpg">https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v0.3.1/appinfo/screenshot.jpg</screenshot>
+    <screenshot small-thumbnail="https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v0.4.0/appinfo/screenshot-small.jpg">https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v0.4.0/appinfo/screenshot.jpg</screenshot>
     <dependencies>
         <php min-version="8.2" max-version="8.5" />
         <nextcloud min-version="33" max-version="35" />
     </dependencies>
+    <repair-steps>
+        <install>
+            <step>OCA\FileViewer\Migration\RegisterMimeTypes</step>
+        </install>
+        <post-migration>
+            <step>OCA\FileViewer\Migration\RegisterMimeTypes</step>
+        </post-migration>
+        <uninstall>
+            <step>OCA\FileViewer\Migration\UnregisterMimeTypes</step>
+        </uninstall>
+    </repair-steps>
     <settings>
         <admin>OCA\FileViewer\Settings\AdminSettings</admin>
         <admin-section>OCA\FileViewer\Settings\AdminSection</admin-section>

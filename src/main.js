@@ -26,11 +26,10 @@ import {
   resolveRendererSandbox,
   serializeError,
 } from './frameProtocol.js';
+import { normalizeEnabledMimes } from './formatSettings.js';
 import { createViewerGeoOptions } from './geoSettings.js';
-import { filterEnabledMimes } from './mimeSettings.js';
 import { registerHandler } from './nextcloudViewerRegistration.js';
 import { resolveFileExtension, resolveFileSource, resolveFilename } from './sourceResolution.js';
-import { SUPPORTED_MIMES } from './supportedFormats.generated.js';
 import { installViewerHandlerPromotion } from './viewerHandlerOrder.js';
 
 const viewerFramePath = generateUrl('/apps/{APP_ID}/viewer/frame', { APP_ID });
@@ -38,7 +37,7 @@ const epubBootstrapFramePath = generateUrl('/apps/{APP_ID}/viewer/epub-bootstrap
 const viewerAssetBasePath = generateUrl('/apps/{APP_ID}/assets/', { APP_ID });
 const sandbox = loadState(APP_ID, 'sandbox', DEFAULT_SANDBOX);
 const geo = loadState(APP_ID, 'geo', createViewerGeoOptions());
-const enabledMimes = filterEnabledMimes(SUPPORTED_MIMES, loadState(APP_ID, 'disabledMimes', []));
+const enabledMimes = normalizeEnabledMimes(loadState(APP_ID, 'enabledMimes', []));
 const publicShareFilename = loadState('files_sharing', 'filename', '');
 
 const FileViewerComponent = {

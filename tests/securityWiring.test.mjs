@@ -129,9 +129,9 @@ test('settings actions retain AppFramework administrator and CSRF defaults', asy
   assert.match(
     source,
     /AppFramework's defaults, which require\s+ \* authentication, administrator privileges, and CSRF validation\./,
-  );
-  assert.match(source, /public function saveGeo\(\): DataResponse/);
-  assert.match(source, /public function saveMimes\(\): DataResponse/);
+	);
+	assert.match(source, /public function saveGeo\(\): DataResponse/);
+	assert.match(source, /public function saveFormats\(\): DataResponse/);
   assert.doesNotMatch(source, /AdminRequired/);
   assert.doesNotMatch(source, /NoAdminRequired|NoCSRFRequired|PublicPage/);
 });

@@ -10,69 +10,54 @@
 	flex: 0 0 auto;
 }
 
-.fileviewer-mime-groups {
+.fileviewer-format-sections {
 	display: grid;
 	gap: calc(var(--default-grid-baseline) * 4);
 	margin-block-start: calc(var(--default-grid-baseline) * 2);
 }
 
-.fileviewer-mime-group {
+.fileviewer-format-section {
 	border-block-start: 1px solid var(--color-border);
 	padding-block-start: calc(var(--default-grid-baseline) * 3);
 }
 
-.fileviewer-mime-group:first-child {
+.fileviewer-format-section:first-child {
 	border-block-start: 0;
 	padding-block-start: 0;
 }
 
-.fileviewer-mime-group-header {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: var(--default-grid-baseline) calc(var(--default-grid-baseline) * 3);
-	margin-block-end: calc(var(--default-grid-baseline) * 2);
-}
-
-.fileviewer-mime-group-heading {
-	min-width: min(100%, 24rem);
-}
-
-.fileviewer-mime-group-title {
+.fileviewer-format-section-title {
 	margin: 0;
 	font-size: 1rem;
 	font-weight: 600;
 	line-height: 1.4;
+	margin-block-end: calc(var(--default-grid-baseline) * 2);
 }
 
-.fileviewer-mime-group-extensions {
-	margin: calc(var(--default-grid-baseline) / 2) 0 0;
-	color: var(--color-text-maxcontrast);
-	font-size: 0.8125rem;
-	line-height: 1.4;
-	overflow-wrap: anywhere;
-}
-
-.fileviewer-mime-group-count {
-	color: var(--color-text-maxcontrast);
-	font-size: 0.8125rem;
-	line-height: 1.4;
-	white-space: nowrap;
-}
-
-.fileviewer-mime-list {
+.fileviewer-format-list {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
 	gap: var(--default-grid-baseline) calc(var(--default-grid-baseline) * 3);
 }
 
-.fileviewer-mime-row code {
-	overflow-wrap: anywhere;
-	white-space: normal;
+.fileviewer-format-label {
+	display: grid;
+	gap: calc(var(--default-grid-baseline) / 2);
+	min-width: 0;
 }
 
-.fileviewer-mime-empty {
+.fileviewer-format-name {
+	font-weight: 500;
+}
+
+.fileviewer-format-extensions {
+	color: var(--color-text-maxcontrast);
+	font-size: 0.8125rem;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.fileviewer-format-empty {
 	color: var(--color-text-maxcontrast);
 	margin: 0;
 }

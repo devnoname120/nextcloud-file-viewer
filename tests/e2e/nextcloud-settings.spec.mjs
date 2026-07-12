@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 const baseURL = process.env.NEXTCLOUD_BASE_URL;
 const username = process.env.NEXTCLOUD_USER || 'admin';
 const password = process.env.NEXTCLOUD_PASSWORD || 'admin';
+const markdownExtension = 'md';
 const markdownMime = 'text/markdown';
 
 test.skip(!baseURL, 'NEXTCLOUD_BASE_URL is required for the live Nextcloud settings test.');
@@ -29,19 +30,27 @@ test('admin geospatial basemap saves on selection change', async ({ page }) => {
   await expect(page.locator('#fileviewer-geo-settings-message')).toHaveText('Saved.', { timeout: 30000 });
 });
 
-test('admin MIME setting removes disabled MIME types from the fileviewer handler', async ({ page }) => {
-  await login(page);
-  await openFileViewerSettings(page);
+test('admin format setting controls real fileviewer dispatch', async ({ page, request }) => {
+	const probe = await uploadMarkdownProbe(request);
+	let originalEnabled;
 
-  const originalEnabled = await setMimeEnabled(page, markdownMime, true);
-  await expect.poll(() => getRegisteredMimes(page), { timeout: 45000 }).toContain(markdownMime);
+	await login(page);
+	try {
+		await openFileViewerSettings(page);
+		originalEnabled = await setFormatEnabled(page, markdownExtension, true);
+		await expect.poll(() => getRegisteredMimes(page), { timeout: 45000 }).toContain(markdownMime);
+		await expectMarkdownDispatch(page, probe, true);
 
-  await openFileViewerSettings(page);
-  await setMimeEnabled(page, markdownMime, false);
-  await expect.poll(() => getRegisteredMimes(page), { timeout: 45000 }).not.toContain(markdownMime);
-
-  await openFileViewerSettings(page);
-  await setMimeEnabled(page, markdownMime, originalEnabled);
+		await openFileViewerSettings(page);
+		await setFormatEnabled(page, markdownExtension, false);
+		await expect.poll(() => getRegisteredMimes(page), { timeout: 45000 }).not.toContain(markdownMime);
+		await expectMarkdownDispatch(page, probe, false);
+	} finally {
+		if (originalEnabled !== undefined) {
+			await openFileViewerSettings(page);
+			await setFormatEnabled(page, markdownExtension, originalEnabled);
+		}
+	}
 });
 
 async function login(page) {
@@ -61,18 +70,21 @@ async function login(page) {
 async function openFileViewerSettings(page) {
   await page.goto(`${baseURL}/settings/admin/fileviewer`);
   await dismissFirstRunWizard(page);
-  await expect(page.getByRole('heading', { name: 'Universal File Viewer', exact: true })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('heading', {
+    name: /^(?:Administration settings: )?Universal File Viewer$/,
+  })).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole('link', { name: 'Universal File Viewer', exact: true })).toBeVisible();
-  await expect(page.locator('#fileviewer-mime-settings-form')).toBeVisible({ timeout: 30000 });
-  await expect(page.getByRole('button', { name: 'Save MIME types' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Save geospatial settings' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
-  await expect(page.locator('link[href*="/fileviewer/css/fileviewer-admin.css"]')).toHaveCount(1);
-  await expect(page.locator('.settings-section').filter({ hasText: 'MIME types handled by Universal File Viewer' })).toBeVisible();
-  await expect(page.locator('#fileviewer-mime-settings-form .checkbox-radio-switch').first()).toBeVisible();
-  await expect(page.locator('#fileviewer-mime-settings-form .button-vue').first()).toBeVisible();
-  await expect(page.locator('#fileviewer-mime-settings-form .input-field').first()).toBeVisible();
-  await expectBulkButtonsToShareRow(page);
+	await expect(page.locator('#fileviewer-format-settings-form')).toBeVisible({ timeout: 30000 });
+	await expect(page.getByRole('button', { name: 'Save file formats' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Save geospatial settings' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+	await expect(page.locator('link[href*="/fileviewer/css/fileviewer-admin.css"]')).toHaveCount(1);
+	await expect(page.locator('.settings-section').filter({ hasText: 'File formats handled by Universal File Viewer' })).toBeVisible();
+	await expect(page.locator('#fileviewer-format-settings-form .checkbox-radio-switch').first()).toBeVisible();
+	await expect(page.locator('#fileviewer-format-settings-form .button-vue').first()).toBeVisible();
+	await expect(page.locator('#fileviewer-format-settings-form .input-field').first()).toBeVisible();
+	await expect(page.locator('#fileviewer-format-settings-form')).not.toContainText('application/');
+	await expectBulkButtonsToShareRow(page);
 }
 
 async function selectBasemap(page, label) {
@@ -82,17 +94,17 @@ async function selectBasemap(page, label) {
   await expect(page.locator('#fileviewer-geo-settings-form .vs__selected').first()).toHaveText(label);
 }
 
-async function setMimeEnabled(page, mime, enabled) {
-  const filter = page.locator('#fileviewer-mime-filter');
-  await filter.fill(mime);
+async function setFormatEnabled(page, extension, enabled) {
+	const filter = page.locator('#fileviewer-format-filter');
+	await filter.fill(`.${extension}`);
 
-  const row = page.locator(`[data-fileviewer-mime-row][data-mime="${mime}"]`);
-  await expect(row).toBeVisible({ timeout: 10000 });
-  const checkbox = row.locator('input.checkbox-radio-switch__input');
-  const originalEnabled = await checkbox.isChecked();
-  if (originalEnabled !== enabled) {
-    await row.locator('.checkbox-radio-switch__content').click();
-    await expect(page.locator('#fileviewer-mime-settings-message')).toHaveText('Saved.', { timeout: 30000 });
+	const row = page.locator(`[data-fileviewer-format-group][data-extensions*="${extension}"]`).first();
+	await expect(row).toBeVisible({ timeout: 10000 });
+	const checkbox = row.locator('input.checkbox-radio-switch__input');
+	const originalEnabled = await checkbox.isChecked();
+	if (originalEnabled !== enabled) {
+		await row.locator('.checkbox-radio-switch__content').click();
+		await expect(page.locator('#fileviewer-format-settings-message')).toHaveText('Saved.', { timeout: 30000 });
   }
   if (enabled) {
     await expect(checkbox).toBeChecked();
@@ -115,9 +127,65 @@ async function getRegisteredMimes(page) {
   ));
 }
 
+async function uploadMarkdownProbe(request) {
+	const uniqueText = `Universal File Viewer format toggle ${Date.now()}`;
+	const fileName = `fileviewer-format-toggle-${Date.now()}.md`;
+	const fileUrl = `${baseURL}/remote.php/dav/files/${encodeURIComponent(username)}/${encodeURIComponent(fileName)}`;
+	const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+	const upload = await request.put(fileUrl, {
+		headers: {
+			Authorization: authorization,
+			'Content-Type': markdownMime,
+		},
+		data: `# ${uniqueText}\n\nThis file verifies real Viewer dispatch.\n`,
+	});
+	expect([201, 204]).toContain(upload.status());
+
+	const propfind = await request.fetch(fileUrl, {
+		method: 'PROPFIND',
+		headers: {
+			Authorization: authorization,
+			Depth: '0',
+			'Content-Type': 'application/xml; charset=utf-8',
+		},
+		data: `<?xml version="1.0"?>
+<d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+  <d:prop><oc:fileid /></d:prop>
+</d:propfind>`,
+	});
+	expect(propfind.ok()).toBeTruthy();
+	const responseBody = await propfind.text();
+	const fileId = responseBody.match(/<(?:oc|nc):fileid>([^<]+)<\/(?:oc|nc):fileid>/)?.[1];
+	expect(fileId).toBeTruthy();
+
+	return { fileId, fileName, uniqueText };
+}
+
+async function expectMarkdownDispatch(page, probe, expected) {
+	const directUrl = new URL(`/apps/files/files/${encodeURIComponent(probe.fileId)}`, baseURL);
+	directUrl.searchParams.set('dir', '/');
+	directUrl.searchParams.set('editing', 'false');
+	directUrl.searchParams.set('openfile', 'true');
+	await page.goto(directUrl.href);
+	await dismissFirstRunWizard(page);
+	await page.waitForLoadState('networkidle').catch(() => {});
+
+	const frame = page.locator('iframe[src*="/fileviewer/viewer/frame"]');
+	if (expected) {
+		await expect(frame).toHaveCount(1, { timeout: 45000 });
+		await expect(page.frameLocator('iframe[src*="/fileviewer/viewer/frame"]')
+			.getByRole('heading', { name: probe.uniqueText, exact: true }))
+			.toBeVisible({ timeout: 45000 });
+		return;
+	}
+
+	await expect(frame).toHaveCount(0);
+	await expect(page.getByText(probe.fileName, { exact: true }).first()).toBeVisible({ timeout: 30000 });
+}
+
 async function expectBulkButtonsToShareRow(page) {
-  const enableButton = page.getByRole('button', { name: 'Enable visible MIME types' });
-  const disableButton = page.getByRole('button', { name: 'Disable visible MIME types' });
+	const enableButton = page.getByRole('button', { name: 'Enable visible formats' });
+	const disableButton = page.getByRole('button', { name: 'Disable visible formats' });
 
   await expect(enableButton).toBeVisible();
   await expect(disableButton).toBeVisible();

@@ -3,10 +3,8 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
-  MIMES_BY_EXTENSION,
-  SUPPORTED_EXTENSIONS,
-  SUPPORTED_MIMES,
-  UNREGISTERED_EXTENSIONS,
+	SUPPORTED_EXTENSIONS,
+	SUPPORTED_FORMATS,
 } from '../src/supportedFormats.generated.js';
 
 test('supported extension list includes representative Flyfish renderer formats', () => {
@@ -15,48 +13,42 @@ test('supported extension list includes representative Flyfish renderer formats'
   }
 });
 
-test('registered MIME list covers representative Flyfish-supported formats', () => {
-  for (const mime of [
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/zip',
-    'image/vnd.dwg',
-    'application/epub+zip',
-    'image/svg+xml',
-    'video/mp4',
-    'audio/mpeg',
-    'text/markdown',
-    'application/octet-stream',
-  ]) {
-    assert.ok(SUPPORTED_MIMES.includes(mime), `${mime} should be registered`);
-  }
+test('every supported extension has one stable app-specific format definition', () => {
+	assert.equal(SUPPORTED_FORMATS.length, SUPPORTED_EXTENSIONS.length);
+	assert.equal(new Set(SUPPORTED_FORMATS.map(format => format.extension)).size, SUPPORTED_FORMATS.length);
+	assert.equal(new Set(SUPPORTED_FORMATS.map(format => format.id)).size, SUPPORTED_FORMATS.length);
+
+	for (const format of SUPPORTED_FORMATS) {
+		assert.equal(format.id, `format:${format.extension}`);
+		assert.ok(format.label);
+		assert.ok(format.category);
+		assert.ok(format.categoryLabel);
+	}
 });
 
-test('registration includes the generic MIME Nextcloud assigns to unknown supported extensions', () => {
-  assert.equal(SUPPORTED_MIMES.includes('application/octet-stream'), true);
-  assert.deepEqual(UNREGISTERED_EXTENSIONS, []);
+test('representative aliases have human-readable labels while retaining distinct stable IDs', () => {
+	const formatsByExtension = Object.fromEntries(
+		SUPPORTED_FORMATS.map(format => [format.extension, format]),
+	);
+
+	assert.equal(formatsByExtension.jpg.label, 'JPEG');
+	assert.equal(formatsByExtension.jpeg.label, 'JPEG');
+	assert.equal(formatsByExtension.md.label, 'Markdown');
+	assert.equal(formatsByExtension.markdown.label, 'Markdown');
+	assert.equal(formatsByExtension.md.category, 'code');
+	assert.equal(formatsByExtension.markdown.category, 'code');
+	assert.equal(formatsByExtension.md.categoryLabel, 'Code and text');
+	assert.equal(formatsByExtension.markdown.categoryLabel, 'Code and text');
+	assert.equal(formatsByExtension.epub.label, 'EPUB');
+	assert.notEqual(formatsByExtension.jpg.id, formatsByExtension.jpeg.id);
 });
 
-test('TypeScript is registered as code, not MPEG transport stream video', () => {
-  assert.deepEqual(MIMES_BY_EXTENSION.ts, [
-    'text/x-typescript',
-    'application/typescript',
-  ]);
-  assert.equal(SUPPORTED_MIMES.includes('video/mp2t'), false);
-});
+test('generated PHP supported format inventory mirrors the JavaScript definitions', async () => {
+	const phpSource = await readFile('lib/Generated/SupportedFormats.php', 'utf8');
 
-test('PSD registration includes the MIME assigned by Nextcloud', () => {
-  assert.ok(SUPPORTED_EXTENSIONS.includes('psd'));
-  assert.ok(SUPPORTED_MIMES.includes('application/x-photoshop'));
-  assert.ok(MIMES_BY_EXTENSION.psd.includes('application/x-photoshop'));
-});
-
-test('generated PHP supported MIME class mirrors the JS registration list', async () => {
-  const phpSource = await readFile('lib/Service/SupportedMimes.php', 'utf8');
-
-  for (const mime of ['application/pdf', 'text/markdown', 'application/octet-stream']) {
-    assert.ok(phpSource.includes(`'${mime}'`), `${mime} should be present in the PHP MIME list`);
-  }
+	for (const extension of ['pdf', 'jpg', 'jpeg', 'md', 'markdown', 'epub', 'dwg']) {
+		assert.ok(phpSource.includes(`'id' => 'format:${extension}'`));
+		assert.ok(phpSource.includes(`'extension' => '${extension}'`));
+	}
+	assert.doesNotMatch(phpSource, /application\/pdf|image\/jpeg|text\/markdown/);
 });

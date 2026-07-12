@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace OCA\FileViewer\Listener;
 
 use OCA\FileViewer\AppInfo\Application;
+use OCA\FileViewer\Service\FormatSettings;
 use OCA\FileViewer\Service\GeoSettings;
-use OCA\FileViewer\Service\MimeSettings;
 use OCA\FileViewer\Service\ViewerCspScope;
 use OCP\AppFramework\Services\IAppConfig;
 use OCP\AppFramework\Services\IInitialState;
@@ -24,7 +24,7 @@ class LoadViewerListener implements IEventListener {
 		private IInitialState $initialState,
 		private IAppConfig $config,
 		private GeoSettings $geoSettings,
-		private MimeSettings $mimeSettings,
+		private FormatSettings $formatSettings,
 		private ViewerCspScope $viewerCspScope,
 	) {
 	}
@@ -40,7 +40,7 @@ class LoadViewerListener implements IEventListener {
 			$this->config->getAppValueString('sandbox', self::DEFAULT_SANDBOX)
 		);
 		$this->initialState->provideInitialState('geo', $this->geoSettings->getViewerGeoOptions());
-		$this->initialState->provideInitialState('disabledMimes', $this->mimeSettings->getDisabledMimes());
+		$this->initialState->provideInitialState('enabledMimes', $this->formatSettings->getEnabledMimes());
 
 		Util::addInitScript(Application::APP_ID, 'fileviewer-main');
 	}

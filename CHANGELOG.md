@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-12
+
+### Changed
+
+- Replaced raw MIME controls with human-readable extension groups backed by stable app format identifiers.
+- Resolve Viewer registrations from Nextcloud's effective extension-to-MIME mapping, including administrator overrides, and migrate existing disabled-MIME preferences.
+- Register fallback extension-to-MIME mappings for every Flyfish-supported format while preserving administrator and future Nextcloud core mappings.
+- Label MIME-colliding format groups with explicit extensions such as `DOC/DOT` and `C/CC` instead of generic MIME descriptions.
+- Show Markdown alongside source and text formats in the `Code and text` section.
+- Sort format names alphabetically within each settings section.
+- Remove MIME-registration bookkeeping when the app is disabled or uninstalled while preserving administrator mappings and user format preferences.
+- Avoid racing Nextcloud's queued Viewer registration when promoting Universal File Viewer ahead of built-in handlers.
+
 ## [0.3.1] - 2026-07-12
 
 ### Added
@@ -47,7 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.1.0...v0.2.0

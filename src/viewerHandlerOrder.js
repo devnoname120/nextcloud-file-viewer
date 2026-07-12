@@ -36,7 +36,9 @@ export function installViewerHandlerPromotion(handler, win = window, options = {
   const retryDelayMs = options.retryDelayMs ?? 50;
   let retryCount = 0;
 
-  const promote = () => registerAndPromoteViewerHandler(win.OCA?.Viewer, handler);
+  // Registration is handled by Nextcloud's _oca_viewer_handlers queue. Calling
+  // registerHandler here can race with that queue and register the same ID twice.
+  const promote = () => promoteViewerHandler(win.OCA?.Viewer, handler.id);
   installViewerSetterPromotion(win, promote);
 
   const retry = () => {
@@ -75,7 +77,13 @@ export function installViewerSetterPromotion(win, promote) {
     },
     set(value) {
       viewer = value;
-      promote();
+      if (typeof win.queueMicrotask === 'function') {
+        win.queueMicrotask(promote);
+      } else if (typeof win.setTimeout === 'function') {
+        win.setTimeout(promote, 0);
+      } else {
+        promote();
+      }
     },
   });
 

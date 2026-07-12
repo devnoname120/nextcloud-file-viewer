@@ -99,6 +99,7 @@ test('installing handler promotion retries until OCA.Viewer is available', async
   const fileviewerHandler = { id: 'fileviewer', mimes: ['image/png'] };
   const listeners = new Map();
   const timers = [];
+  const registrationCalls = [];
   const win = {
     OCA: {},
     document: {
@@ -122,11 +123,17 @@ test('installing handler promotion retries until OCA.Viewer is available', async
   win.OCA.Viewer = {
     availableHandlers: [{ id: 'images' }],
     registerHandler(handler) {
+      registrationCalls.push(handler.id);
       this.availableHandlers.push(handler);
     },
   };
 
+  // Nextcloud consumes _oca_viewer_handlers synchronously after assigning
+  // OCA.Viewer; the promotion helper must only reorder that queued handler.
+  win.OCA.Viewer.registerHandler(fileviewerHandler);
+
   timers.shift()();
+  assert.deepEqual(registrationCalls, ['fileviewer']);
   assert.deepEqual(win.OCA.Viewer.availableHandlers.map(handler => handler.id), [
     'fileviewer',
     'images',
@@ -169,5 +176,45 @@ test('viewer setter promotion runs when Nextcloud assigns OCA.Viewer', () => {
     'fileviewer',
     'images',
     'videos',
+  ]);
+});
+
+test('viewer setter lets Nextcloud consume the queued handler before promotion', () => {
+  const fileviewerHandler = { id: 'fileviewer', mimes: ['image/png'] };
+  const microtasks = [];
+  const registrationCalls = [];
+  const win = {
+    queueMicrotask(callback) {
+      microtasks.push(callback);
+    },
+  };
+
+  installViewerSetterPromotion(win, () => registerAndPromoteViewerHandler(
+    win.OCA?.Viewer,
+    fileviewerHandler,
+  ));
+
+  win.OCA.Viewer = {
+    availableHandlers: [{ id: 'images' }],
+    registerHandler(handler) {
+      registrationCalls.push(handler.id);
+      this.availableHandlers.push(handler);
+    },
+  };
+
+  // This mirrors Nextcloud's synchronous _oca_viewer_handlers processing
+  // immediately after assigning OCA.Viewer.
+  win.OCA.Viewer.registerHandler(fileviewerHandler);
+  assert.deepEqual(registrationCalls, ['fileviewer']);
+  assert.deepEqual(win.OCA.Viewer.availableHandlers.map(handler => handler.id), [
+    'images',
+    'fileviewer',
+  ]);
+
+  microtasks.shift()();
+  assert.deepEqual(registrationCalls, ['fileviewer']);
+  assert.deepEqual(win.OCA.Viewer.availableHandlers.map(handler => handler.id), [
+    'fileviewer',
+    'images',
   ]);
 });

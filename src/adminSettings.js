@@ -17,18 +17,13 @@ import {
 	normalizeGeoSettings,
 } from './geoSettings.js';
 import {
-	createAdminMimeSettings,
-	normalizeDisabledMimes,
-} from './mimeSettings.js';
-import {
-	createMimeGroups,
-	filterMimeGroups,
-	flattenMimeGroups,
-} from './formatGroups.js';
-import {
-	MIMES_BY_EXTENSION,
-	SUPPORTED_MIMES,
-} from './supportedFormats.generated.js';
+	createAdminFormatSettings,
+	createFormatSections,
+	filterFormatGroups,
+	flattenFormatIds,
+	isFormatGroupEnabled,
+	normalizeDisabledFormatIds,
+} from './formatSettings.js';
 
 const root = document.getElementById('fileviewer-admin-settings');
 const GEO_SAVE_DEBOUNCE_MS = 500;
@@ -37,9 +32,8 @@ const GEO_SETTINGS_KEYS = ['basemap', 'tileUrl', 'styleUrl', 'apiKey', 'attribut
 const AdminSettingsApp = {
 	name: 'FileViewerAdminSettings',
 	data() {
-		const mimeSettings = createAdminMimeSettings(
-			loadState(APP_ID, 'adminMimeSettings', {}),
-			SUPPORTED_MIMES,
+		const formatSettings = createAdminFormatSettings(
+			loadState(APP_ID, 'adminFormatSettings', {}),
 		);
 
 		return {
@@ -47,14 +41,14 @@ const AdminSettingsApp = {
 			geoSaveQueued: false,
 			geoSaveTimer: null,
 			geoSettingsVersion: 0,
-			mimeSettings,
-			mimeFilter: '',
+			formatSettings,
+			formatFilter: '',
 			geoMessage: '',
-			mimeMessage: '',
+			formatMessage: '',
 			savingGeo: false,
-			savingMimes: false,
-			mimeSaveQueued: false,
-			mimeSettingsVersion: 0,
+			savingFormats: false,
+			formatSaveQueued: false,
+			formatSettingsVersion: 0,
 		};
 	},
 	beforeUnmount() {
@@ -74,21 +68,23 @@ const AdminSettingsApp = {
 		isCustomBasemap() {
 			return this.isCustomRasterBasemap || this.isCustomVectorBasemap;
 		},
-		mimeGroups() {
-			return createMimeGroups(this.mimeSettings.supportedMimes, MIMES_BY_EXTENSION);
+		filteredFormatGroups() {
+			return filterFormatGroups(this.formatSettings.formatGroups, this.formatFilter);
 		},
-		filteredMimeGroups() {
-			return filterMimeGroups(this.mimeGroups, this.mimeFilter);
+		formatSections() {
+			return createFormatSections(this.filteredFormatGroups);
 		},
-		filteredMimes() {
-			return flattenMimeGroups(this.filteredMimeGroups);
+		visibleFormatIds() {
+			return flattenFormatIds(this.filteredFormatGroups);
 		},
-		enabledMimeCount() {
-			return this.mimeSettings.supportedMimes.length - this.mimeSettings.disabledMimes.length;
+		enabledFormatGroupCount() {
+			return this.formatSettings.formatGroups.filter(formatGroup => (
+				this.isFormatEnabled(formatGroup)
+			)).length;
 		},
-		mimeCountText() {
-			const suffix = this.mimeFilter.trim() === '' ? '' : `; ${this.filteredMimes.length} visible`;
-			return `${this.enabledMimeCount} of ${this.mimeSettings.supportedMimes.length} MIME types enabled${suffix}.`;
+		formatCountText() {
+			const suffix = this.formatFilter.trim() === '' ? '' : `; ${this.filteredFormatGroups.length} visible`;
+			return `${this.enabledFormatGroupCount} of ${this.formatSettings.formatGroups.length} format groups enabled${suffix}.`;
 		},
 	},
 	methods: {
@@ -193,74 +189,75 @@ const AdminSettingsApp = {
 			}
 			this.savingGeo = false;
 		},
-		isMimeEnabled(mime) {
-			return !this.mimeSettings.disabledMimes.includes(mime);
+		isFormatEnabled(formatGroup) {
+			return isFormatGroupEnabled(formatGroup, this.formatSettings.disabledFormatIds);
 		},
-		setMimeEnabled(mime, enabled) {
-			const disabled = new Set(this.mimeSettings.disabledMimes);
-			if (enabled) {
-				disabled.delete(mime);
-			} else {
-				disabled.add(mime);
-			}
-			if (this.applyDisabledMimes([...disabled])) {
-				this.requestMimeSettingsSave();
-			}
-		},
-		setVisibleMimes(enabled) {
-			const visible = new Set(this.filteredMimes);
-			const disabled = new Set(this.mimeSettings.disabledMimes);
-			this.mimeSettings.supportedMimes.forEach(mime => {
-				if (!visible.has(mime)) {
-					return;
-				}
+		setFormatEnabled(formatGroup, enabled) {
+			const disabled = new Set(this.formatSettings.disabledFormatIds);
+			for (const formatId of formatGroup.formatIds) {
 				if (enabled) {
-					disabled.delete(mime);
+					disabled.delete(formatId);
 				} else {
-					disabled.add(mime);
+					disabled.add(formatId);
 				}
-			});
-			if (this.applyDisabledMimes([...disabled])) {
-				this.requestMimeSettingsSave();
+			}
+			if (this.applyDisabledFormatIds([...disabled])) {
+				this.requestFormatSettingsSave();
 			}
 		},
-		applyDisabledMimes(disabledMimes) {
-			const normalizedDisabledMimes = normalizeDisabledMimes(
-				disabledMimes,
-				this.mimeSettings.supportedMimes,
+		setVisibleFormats(enabled) {
+			const disabled = new Set(this.formatSettings.disabledFormatIds);
+			for (const formatId of this.visibleFormatIds) {
+				if (enabled) {
+					disabled.delete(formatId);
+				} else {
+					disabled.add(formatId);
+				}
+			}
+			if (this.applyDisabledFormatIds([...disabled])) {
+				this.requestFormatSettingsSave();
+			}
+		},
+		applyDisabledFormatIds(disabledFormatIds) {
+			const normalizedDisabledFormatIds = normalizeDisabledFormatIds(
+				disabledFormatIds,
+				this.formatSettings.formatGroups,
 			);
-			if (this.areMimeListsEqual(normalizedDisabledMimes, this.mimeSettings.disabledMimes)) {
+			if (this.areStringListsEqual(
+				normalizedDisabledFormatIds,
+				this.formatSettings.disabledFormatIds,
+			)) {
 				return false;
 			}
-			this.mimeSettings = {
-				...this.mimeSettings,
-				disabledMimes: normalizedDisabledMimes,
+			this.formatSettings = {
+				...this.formatSettings,
+				disabledFormatIds: normalizedDisabledFormatIds,
 			};
-			this.mimeSettingsVersion += 1;
+			this.formatSettingsVersion += 1;
 			return true;
 		},
-		areMimeListsEqual(left, right) {
+		areStringListsEqual(left, right) {
 			return left.length === right.length
-				&& left.every((mime, index) => mime === right[index]);
+				&& left.every((value, index) => value === right[index]);
 		},
-		requestMimeSettingsSave() {
-			this.mimeSaveQueued = true;
-			if (!this.savingMimes) {
-				void this.flushMimeSettingsSave();
+		requestFormatSettingsSave() {
+			this.formatSaveQueued = true;
+			if (!this.savingFormats) {
+				void this.flushFormatSettingsSave();
 			}
 		},
-		async flushMimeSettingsSave() {
-			this.savingMimes = true;
-			while (this.mimeSaveQueued) {
-				this.mimeSaveQueued = false;
-				const version = this.mimeSettingsVersion;
+		async flushFormatSettingsSave() {
+			this.savingFormats = true;
+			while (this.formatSaveQueued) {
+				this.formatSaveQueued = false;
+				const version = this.formatSettingsVersion;
 				const payload = {
-					disabledMimes: this.mimeSettings.disabledMimes,
+					disabledFormatIds: this.formatSettings.disabledFormatIds,
 				};
 
-				this.mimeMessage = 'Saving...';
+				this.formatMessage = 'Saving...';
 				try {
-					const response = await fetch(generateUrl('/apps/{APP_ID}/settings/mimes', { APP_ID }), {
+					const response = await fetch(generateUrl('/apps/{APP_ID}/settings/formats', { APP_ID }), {
 						method: 'PUT',
 						credentials: 'same-origin',
 						headers: {
@@ -271,20 +268,19 @@ const AdminSettingsApp = {
 					});
 					const data = await response.json().catch(() => ({}));
 					if (!response.ok) {
-						throw new Error(data.message || 'Failed to save Universal File Viewer MIME settings.');
+						throw new Error(data.message || 'Failed to save Universal File Viewer format settings.');
 					}
 
-					if (version === this.mimeSettingsVersion) {
-						const settings = createAdminMimeSettings(data.settings || {}, this.mimeSettings.supportedMimes);
-						this.mimeSettings = settings;
+					if (version === this.formatSettingsVersion) {
+						this.formatSettings = createAdminFormatSettings(data.settings || {});
 					}
-					this.mimeMessage = 'Saved.';
+					this.formatMessage = 'Saved.';
 				} catch (error) {
-					this.mimeMessage = error?.message || String(error);
-					this.mimeSaveQueued = false;
+					this.formatMessage = error?.message || String(error);
+					this.formatSaveQueued = false;
 				}
 			}
-			this.savingMimes = false;
+			this.savingFormats = false;
 		},
 		renderGeoField(h, key, label, props = {}) {
 			return h(NcTextField, {
@@ -362,96 +358,93 @@ const AdminSettingsApp = {
 				],
 			});
 		},
-		renderMimeRow(h, mime) {
+		renderFormatGroup(h, formatGroup) {
 			return h('div', {
-				class: 'fileviewer-mime-row',
-				'data-fileviewer-mime-row': '',
-				'data-mime': mime,
+				class: 'fileviewer-format-row',
+				'data-fileviewer-format-group': formatGroup.id,
+				'data-extensions': formatGroup.extensions.join(','),
 			}, [
 				h(NcCheckboxRadioSwitch, {
-					id: `fileviewer-mime-${mime.replace(/[^A-Za-z0-9_-]/g, '-')}`,
-					modelValue: this.isMimeEnabled(mime),
-					'onUpdate:modelValue': enabled => this.setMimeEnabled(mime, enabled),
+					id: `fileviewer-format-${formatGroup.id.replace(/[^A-Za-z0-9_-]/g, '-')}`,
+					modelValue: this.isFormatEnabled(formatGroup),
+					'onUpdate:modelValue': enabled => this.setFormatEnabled(formatGroup, enabled),
 				}, {
-					default: () => h('code', mime),
+					default: () => h('span', { class: 'fileviewer-format-label' }, [
+						h('span', { class: 'fileviewer-format-name' }, formatGroup.label),
+						h('span', { class: 'fileviewer-format-extensions' }, formatGroup.extensionText),
+					]),
 				}),
 			]);
 		},
-		renderMimeGroup(h, mimeGroup) {
-			const headingId = `fileviewer-mime-group-${mimeGroup.id}-heading`;
-			const mimeCount = `${mimeGroup.mimes.length} MIME ${mimeGroup.mimes.length === 1 ? 'type' : 'types'}`;
-
+		renderFormatSection(h, formatSection) {
+			const headingId = `fileviewer-format-section-${formatSection.id}-heading`;
 			return h('section', {
-				class: 'fileviewer-mime-group',
+				class: 'fileviewer-format-section',
 				'aria-labelledby': headingId,
-				'data-fileviewer-mime-group': mimeGroup.id,
+				'data-fileviewer-format-section': formatSection.id,
 			}, [
-				h('div', { class: 'fileviewer-mime-group-header' }, [
-					h('div', { class: 'fileviewer-mime-group-heading' }, [
-						h('h3', {
-							class: 'fileviewer-mime-group-title',
-							id: headingId,
-						}, mimeGroup.label),
-						h('p', { class: 'fileviewer-mime-group-extensions' }, mimeGroup.extensionText),
-					]),
-					h('span', { class: 'fileviewer-mime-group-count' }, mimeCount),
-				]),
-				h('div', { class: 'fileviewer-mime-list' }, mimeGroup.mimes.map(mime => this.renderMimeRow(h, mime))),
+				h('h3', {
+					class: 'fileviewer-format-section-title',
+					id: headingId,
+				}, formatSection.label),
+				h('div', { class: 'fileviewer-format-list' }, formatSection.groups.map(
+					formatGroup => this.renderFormatGroup(h, formatGroup),
+				)),
 			]);
 		},
-		renderMimeSettings(h) {
+		renderFormatSettings(h) {
 			return h(NcSettingsSection, {
-				name: 'MIME types handled by Universal File Viewer',
-				description: 'Disable MIME types here to let Nextcloud use another viewer or fall back to download handling.',
+				name: 'File formats handled by Universal File Viewer',
+				description: 'Disable formats to let Nextcloud use another viewer or fall back to downloading. Formats that Nextcloud classifies as the same file type are combined into one setting.',
 			}, {
 				default: () => [
 					h('form', {
 						class: 'fileviewer-settings-form',
-						id: 'fileviewer-mime-settings-form',
+						id: 'fileviewer-format-settings-form',
 						onSubmit: event => {
 							event.preventDefault();
 						},
 					}, [
 						h(NcTextField, {
-							label: 'Filter file types',
+							label: 'Filter file formats',
 							type: 'search',
-							modelValue: this.mimeFilter,
-							placeholder: 'PDF, dwg, application/pdf, text/markdown, image/...',
-							id: 'fileviewer-mime-filter',
+							modelValue: this.formatFilter,
+							placeholder: 'JPEG, .jpg, Markdown, EPUB...',
+							id: 'fileviewer-format-filter',
 							autocomplete: 'off',
 							'onUpdate:modelValue': value => {
-								this.mimeFilter = value;
+								this.formatFilter = value;
 							},
 						}),
 						h('div', { class: 'fileviewer-settings-actions' }, [
 							h(NcButton, {
 								type: 'button',
-								ariaLabel: 'Enable visible MIME types',
+								ariaLabel: 'Enable visible formats',
 								text: 'Enable visible',
-								onClick: () => this.setVisibleMimes(true),
+								onClick: () => this.setVisibleFormats(true),
 							}),
 							h(NcButton, {
 								type: 'button',
-								ariaLabel: 'Disable visible MIME types',
+								ariaLabel: 'Disable visible formats',
 								text: 'Disable visible',
-								onClick: () => this.setVisibleMimes(false),
+								onClick: () => this.setVisibleFormats(false),
 							}),
 							h('span', {
-								id: 'fileviewer-mime-settings-count',
+								id: 'fileviewer-format-settings-count',
 								'aria-live': 'polite',
-							}, this.mimeCountText),
+							}, this.formatCountText),
 							h('span', {
-								id: 'fileviewer-mime-settings-message',
+								id: 'fileviewer-format-settings-message',
 								'aria-live': 'polite',
-							}, this.mimeMessage),
+							}, this.formatMessage),
 						]),
 						h('div', {
-							class: 'fileviewer-mime-groups',
-							id: 'fileviewer-mime-settings-list',
-						}, this.filteredMimeGroups.length > 0
-							? this.filteredMimeGroups.map(mimeGroup => this.renderMimeGroup(h, mimeGroup))
+							class: 'fileviewer-format-sections',
+							id: 'fileviewer-format-settings-list',
+						}, this.formatSections.length > 0
+							? this.formatSections.map(formatSection => this.renderFormatSection(h, formatSection))
 							: [
-								h('p', { class: 'fileviewer-mime-empty' }, 'No MIME types match this filter.'),
+								h('p', { class: 'fileviewer-format-empty' }, 'No file formats match this filter.'),
 							]),
 					]),
 				],
@@ -461,7 +454,7 @@ const AdminSettingsApp = {
 	render() {
 		return h('div', { class: 'fileviewer-admin-settings' }, [
 			this.renderGeoSettings(h),
-			this.renderMimeSettings(h),
+			this.renderFormatSettings(h),
 		]);
 	},
 };

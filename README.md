@@ -49,6 +49,29 @@ matrix.
 | Video | `mp4`, `webm`, `m3u8` |
 | Fonts, design assets, and data | `ttf`, `otf`, `woff`, `woff2`, `psd`, `ai`, `eps`, `sqlite`, `wasm`, `parquet`, `avro`, `webarchive` |
 
+## File format settings
+
+The administration page exposes human-readable format groups such as JPEG (`.jpg`,
+`.jpeg`), Markdown (`.md`, `.markdown`), and EPUB (`.epub`). It does not expose raw
+MIME type strings.
+
+Universal File Viewer keeps Flyfish's supported-extension inventory, then resolves
+those extensions through Nextcloud's effective extension-to-MIME mapping using
+`OCP\Files\IMimeTypeDetector::getAllMappings()`. During installation, upgrades, and
+re-enabling, the app adds fallback mappings for supported extensions that are absent
+from both Nextcloud core and the administrator's `mimetypemapping.json`.
+Administrator entries always win. The app tracks its exact additions, yields when
+Nextcloud later gains a core mapping, and removes only unchanged app-owned entries during uninstall. The
+resulting deduplicated MIME types are used internally when registering the Viewer
+handler.
+
+When several supported extensions resolve to the same MIME type, Nextcloud Viewer
+cannot dispatch them independently. The settings page therefore combines them into
+one option and lists every affected extension. Shared aliases keep their format name,
+such as JPEG, while distinct formats use an explicit label such as `DOC/DOT`. Saved
+preferences use stable app-specific format identifiers; existing `disabled_mimes`
+preferences are migrated against the current Nextcloud mapping.
+
 ## Build
 
 ```bash
@@ -59,9 +82,11 @@ npm run build
 The build requires Node.js 24 or later and npm 11.16.0 or later. The npm policy
 fails closed if a dependency adds an unreviewed lifecycle script.
 
-The build generates `src/supportedFormats.generated.js`, bundles the Viewer
-registration script into `js/fileviewer-main.mjs`, and copies Flyfish runtime
-assets into `viewer/file-viewer/`. It also verifies that every locked package
+The build generates `src/supportedFormats.generated.js`,
+`lib/Generated/SupportedFormats.php`, and `lib/Generated/MimeTypeMappings.php` from
+Flyfish's renderer definitions, bundles the Viewer registration script into
+`js/fileviewer-main.mjs`, and copies Flyfish runtime assets into
+`viewer/file-viewer/`. It also verifies that every locked package
 comes from the npm registry with an integrity hash and that the copied Flyfish
 manifest matches the locked version. `make dist` additionally fails on known
 production dependency advisories and runs the Chromium sandbox security suite.

@@ -1,158 +1,128 @@
 import { writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
-import { DEFAULT_SUPPORTED_EXTENSIONS } from '@file-viewer/core';
-import { lookup } from 'mime-types';
+import {
+	DEFAULT_RENDERER_DEFINITIONS,
+	DEFAULT_SUPPORTED_EXTENSIONS,
+} from '@file-viewer/core';
 
-const manualMimeOverrides = new Map([
-  ['3dm', ['model/vnd.3dm']],
-  ['3ds', ['image/x-3ds', 'application/x-3ds']],
-  ['3mf', ['model/3mf']],
-  ['7z', ['application/x-7z-compressed']],
-  ['ai', ['application/postscript', 'application/illustrator']],
-  ['amf', ['application/x-amf']],
-  ['ar', ['application/x-archive', 'application/x-unix-archive']],
-  ['avro', ['application/avro', 'application/x-avro']],
-  ['bash', ['application/x-sh', 'text/x-shellscript', 'text/x-sh']],
-  ['bdl', ['text/x-bdl', 'text/plain']],
-  ['brep', ['model/x-brep']],
-  ['bundle', ['text/x-git-bundle']],
-  ['bzip2', ['application/x-bzip2']],
-  ['cab', ['application/vnd.ms-cab-compressed']],
-  ['cbr', ['application/x-cbr', 'application/vnd.comicbook-rar', 'application/comicbook+rar']],
-  ['cbz', ['application/x-cbz', 'application/vnd.comicbook+zip', 'application/comicbook+zip']],
-  ['cs', ['text/x-csharp']],
-  ['dae', ['model/vnd.collada+xml']],
-  ['diff', ['text/x-diff', 'text/x-patch']],
-  ['dio', ['application/vnd.jgraph.mxfile', 'application/x-drawio']],
-  ['drawio', ['application/vnd.jgraph.mxfile', 'application/x-drawio']],
-  ['dwf', ['model/vnd.dwf', 'application/x-dwf']],
-  ['dwfx', ['model/vnd.dwfx', 'application/x-dwfx']],
-  ['dwg', ['image/vnd.dwg', 'image/x-dwg', 'application/acad', 'application/autocad_dwg', 'application/x-acad', 'application/x-dwg']],
-  ['dxf', ['image/vnd.dxf', 'image/x-dxf', 'application/dxf', 'application/x-dxf']],
-  ['eml', ['message/rfc822']],
-  ['eps', ['application/postscript', 'image/x-eps']],
-  ['excalidraw', ['application/vnd.excalidraw+json', 'application/x-excalidraw']],
-  ['fbx', ['application/octet-fbx', 'model/fbx', 'application/x-fbx']],
-  ['fods', ['application/vnd.oasis.opendocument.spreadsheet-flat-xml']],
-  ['gds', ['application/x-gdsii']],
-  ['geojson', ['application/geo+json', 'application/vnd.geo+json']],
-  ['glb', ['model/gltf-binary']],
-  ['gltf', ['model/gltf+json']],
-  ['go', ['text/x-go']],
-  ['gzip', ['application/gzip']],
-  ['hcl', ['text/x-hcl']],
-  ['heic', ['image/heic']],
-  ['heif', ['image/heif']],
-  ['hpp', ['text/x-c++hdr', 'text/x-c++src']],
-  ['http', ['message/http', 'application/http']],
-  ['ifc', ['application/x-ifc', 'model/ifc']],
-  ['iges', ['model/iges']],
-  ['igs', ['model/iges']],
-  ['ipynb', ['application/x-ipynb+json']],
-  ['jsonc', ['application/jsonc', 'application/json']],
-  ['kt', ['text/x-kotlin']],
-  ['lzma', ['application/x-lzma']],
-  ['m3u8', ['application/vnd.apple.mpegurl', 'audio/mpegurl']],
-  ['markdown', ['text/markdown', 'text/x-markdown']],
-  ['mbox', ['application/mbox']],
-  ['md', ['text/markdown', 'text/x-markdown']],
-  ['mermaid', ['text/vnd.mermaid', 'text/x-mermaid']],
-  ['mmd', ['text/vnd.mermaid', 'text/x-mermaid']],
-  ['msg', ['application/vnd.ms-outlook', 'application/x-ole-storage']],
-  ['numbers', ['application/vnd.apple.numbers']],
-  ['oas', ['application/x-oasis-layout']],
-  ['oasis', ['application/x-oasis-layout']],
-  ['ofd', ['application/ofd', 'application/vnd.ofd']],
-  ['olb', ['application/x-orcad-library']],
-  ['parquet', ['application/vnd.apache.parquet']],
-  ['patch', ['text/x-patch', 'text/x-diff']],
-  ['pcd', ['application/x-pointcloud']],
-  ['plantuml', ['text/x-plantuml']],
-  ['ply', ['model/ply', 'application/x-ply']],
-  ['proto', ['application/x-protobuf', 'text/x-protobuf']],
-  ['psd', ['image/vnd.adobe.photoshop', 'image/x-photoshop', 'application/photoshop', 'application/x-photoshop']],
-  ['puml', ['text/x-plantuml']],
-  ['py', ['text/x-python', 'application/x-python-code']],
-  ['rar', ['application/vnd.rar', 'application/x-rar-compressed']],
-  ['rb', ['text/x-ruby']],
-  ['react', ['text/x-react', 'text/jsx']],
-  ['shp', ['application/x-esri-shape', 'application/x-shapefile', 'application/vnd.shp']],
-  ['sqlite', ['application/vnd.sqlite3', 'application/x-sqlite3']],
-  ['step', ['model/step']],
-  ['stp', ['model/step']],
-  ['stl', ['model/stl', 'application/vnd.ms-pki.stl']],
-  ['swift', ['text/x-swift']],
-  ['tbz', ['application/x-bzip-compressed-tar']],
-  ['tbz2', ['application/x-bzip-compressed-tar']],
-  ['tex', ['application/x-tex', 'text/x-tex']],
-  ['tgz', ['application/gzip', 'application/x-compressed-tar']],
-  ['ts', ['text/x-typescript', 'application/typescript']],
-  ['tsx', ['text/tsx', 'text/x-typescript']],
-  ['txz', ['application/x-xz-compressed-tar']],
-  ['typ', ['text/x-typst']],
-  ['typst', ['text/x-typst']],
-  ['tzst', ['application/x-zstd-compressed-tar']],
-  ['umd', ['application/x-umd']],
-  ['usda', ['model/vnd.usda']],
-  ['usdc', ['model/vnd.usdc']],
-  ['usd', ['model/vnd.usd']],
-  ['usdz', ['model/vnd.usdz+zip']],
-  ['vtk', ['model/vnd.vtk']],
-  ['vtp', ['model/vnd.vtk']],
-  ['vue', ['text/x-vue', 'application/x-vue']],
-  ['webarchive', ['application/x-webarchive']],
-  ['xmind', ['application/vnd.xmind.workbook', 'application/x-xmind']],
-  ['xps', ['application/vnd.ms-xpsdocument']],
-  ['zipx', ['application/x-zip-compressed', 'application/zip']],
-  ['zst', ['application/zstd', 'application/x-zstd']],
-]);
+import { createMimeTypeMappings } from './mime-type-mappings.mjs';
 
-const ignoredMimes = new Set(['application/octet-stream']);
-const ignoredMimesByExtension = new Map([
-  ['ts', new Set(['video/mp2t'])],
-]);
-const alwaysRegisteredMimes = [
-  // Nextcloud's default MIME map does not know several extension-driven
-  // Flyfish formats, so existing files can be stored as octet-stream.
-  'application/octet-stream',
-];
+const CATEGORY_ALIASES = Object.freeze({
+	markdown: 'code',
+});
 
-const extensions = [...DEFAULT_SUPPORTED_EXTENSIONS].sort();
-const mimeByExtension = new Map();
-const mimeSet = new Set();
-const unregisteredExtensions = [];
+const CATEGORY_LABELS = Object.freeze({
+	archive: 'Archives',
+	asset: 'Fonts, design assets, and data',
+	cad: 'CAD',
+	code: 'Code and text',
+	document: 'Documents',
+	drawing: 'Drawings',
+	ebook: 'Ebooks',
+	eda: 'EDA',
+	email: 'Email',
+	geo: 'Geospatial data',
+	image: 'Images',
+	media: 'Audio and video',
+	mindmap: 'Mind maps',
+	model: '3D models',
+	office: 'Office',
+});
 
-for (const extension of extensions) {
-  const candidates = [
-    lookup(extension),
-    ...(manualMimeOverrides.get(extension) || []),
-  ].filter(Boolean);
-  const ignoredForExtension = ignoredMimesByExtension.get(extension) || new Set();
-  const mimes = [...new Set(candidates)]
-    .filter(mime => !ignoredMimes.has(mime) && !ignoredForExtension.has(mime));
+const FORMAT_LABELS = Object.freeze({
+	bash: 'Shell script',
+	bz2: 'Bzip2',
+	bzip2: 'Bzip2',
+	cjs: 'JavaScript',
+	cpp: 'C++',
+	dio: 'draw.io',
+	drawio: 'draw.io',
+	gz: 'Gzip',
+	gzip: 'Gzip',
+	htm: 'HTML',
+	html: 'HTML',
+	iges: 'IGES',
+	igs: 'IGES',
+	java: 'Java',
+	jpeg: 'JPEG',
+	jpg: 'JPEG',
+	js: 'JavaScript',
+	jsonc: 'JSON with comments',
+	jsx: 'JavaScript JSX',
+	markdown: 'Markdown',
+	md: 'Markdown',
+	mermaid: 'Mermaid',
+	mid: 'MIDI',
+	midi: 'MIDI',
+	mjs: 'JavaScript',
+	mmd: 'Mermaid',
+	oas: 'OASIS',
+	oasis: 'OASIS',
+	plantuml: 'PlantUML',
+	puml: 'PlantUML',
+	py: 'Python',
+	rb: 'Ruby',
+	sh: 'Shell script',
+	step: 'STEP',
+	stp: 'STEP',
+	tif: 'TIFF',
+	tiff: 'TIFF',
+	ts: 'TypeScript',
+	tsx: 'TypeScript JSX',
+	typ: 'Typst',
+	typst: 'Typst',
+	vrml: 'VRML',
+	wrl: 'VRML',
+	yaml: 'YAML',
+	yml: 'YAML',
+});
 
-  if (mimes.length === 0) {
-    unregisteredExtensions.push(extension);
-    continue;
-  }
+const supportedExtensionSet = new Set(DEFAULT_SUPPORTED_EXTENSIONS);
+const seenExtensions = new Set();
+const supportedFormats = [];
 
-  mimeByExtension.set(extension, mimes);
-  mimes.forEach(mime => mimeSet.add(mime));
+for (const definition of DEFAULT_RENDERER_DEFINITIONS) {
+	const sourceCategory = String(definition.category || 'other');
+	const category = CATEGORY_ALIASES[sourceCategory] || sourceCategory;
+	const categoryLabel = CATEGORY_LABELS[category] || humanizeIdentifier(category);
+
+	for (const rawExtension of definition.extensions) {
+		const extension = String(rawExtension).trim().toLowerCase();
+		if (!supportedExtensionSet.has(extension)) {
+			throw new Error(`Renderer format ${extension} is missing from DEFAULT_SUPPORTED_EXTENSIONS.`);
+		}
+		if (seenExtensions.has(extension)) {
+			throw new Error(`Renderer format ${extension} is declared more than once.`);
+		}
+
+		seenExtensions.add(extension);
+		supportedFormats.push({
+			id: `format:${extension}`,
+			label: FORMAT_LABELS[extension] || extension.toUpperCase(),
+			category,
+			categoryLabel,
+			extension,
+		});
+	}
 }
 
-alwaysRegisteredMimes.forEach(mime => mimeSet.add(mime));
+const missingExtensions = DEFAULT_SUPPORTED_EXTENSIONS.filter(extension => !seenExtensions.has(extension));
+if (missingExtensions.length > 0) {
+	throw new Error(`Flyfish formats are missing renderer definitions: ${missingExtensions.join(', ')}`);
+}
 
-const supportedMimes = [...mimeSet].sort();
+const extensions = supportedFormats.map(format => format.extension).sort();
+const mimeTypeMappings = createMimeTypeMappings(extensions);
+const mimeTypeMappingsRevision = createHash('sha256')
+	.update(JSON.stringify(Object.fromEntries(mimeTypeMappings)))
+	.digest('hex');
 
 const output = `// Generated by scripts/generate-supported-formats.mjs. Do not edit by hand.
-export const SUPPORTED_EXTENSIONS = ${formatArray(extensions)};
+export const SUPPORTED_FORMATS = Object.freeze(${JSON.stringify(supportedFormats, null, 2)});
 
-export const SUPPORTED_MIMES = ${formatArray(supportedMimes)};
-
-export const UNREGISTERED_EXTENSIONS = ${formatArray(unregisteredExtensions)};
-
-export const MIMES_BY_EXTENSION = ${formatObject(Object.fromEntries(mimeByExtension))};
+export const SUPPORTED_EXTENSIONS = Object.freeze(${JSON.stringify(extensions, null, 2)});
 `;
 
 await writeFile(resolve('src/supportedFormats.generated.js'), output);
@@ -161,33 +131,64 @@ const phpOutput = `<?php
 
 declare(strict_types=1);
 
-namespace OCA\\FileViewer\\Service;
+namespace OCA\\FileViewer\\Generated;
 
 /**
  * Generated by scripts/generate-supported-formats.mjs. Do not edit by hand.
  */
-final class SupportedMimes {
+final class SupportedFormats {
 	/**
-	 * @return list<string>
+	 * @return list<array{id: string, label: string, category: string, categoryLabel: string, extension: string}>
 	 */
 	public static function all(): array {
 		return [
-${supportedMimes.map(mime => `			'${escapePhpString(mime)}',`).join('\n')}
+${supportedFormats.map(format => `\t\t\t[
+\t\t\t\t'id' => '${escapePhpString(format.id)}',
+\t\t\t\t'label' => '${escapePhpString(format.label)}',
+\t\t\t\t'category' => '${escapePhpString(format.category)}',
+\t\t\t\t'categoryLabel' => '${escapePhpString(format.categoryLabel)}',
+\t\t\t\t'extension' => '${escapePhpString(format.extension)}',
+\t\t\t],`).join('\n')}
 		];
 	}
 }
 `;
 
-await writeFile(resolve('lib/Service/SupportedMimes.php'), phpOutput);
+await writeFile(resolve('lib/Generated/SupportedFormats.php'), phpOutput);
 
-function formatArray(values) {
-  return `Object.freeze(${JSON.stringify(values, null, 2)})`;
+const mimeTypeMappingsPhpOutput = `<?php
+
+declare(strict_types=1);
+
+namespace OCA\\FileViewer\\Generated;
+
+/**
+ * Generated by scripts/generate-supported-formats.mjs. Do not edit by hand.
+ */
+final class MimeTypeMappings {
+	public const REVISION = '${mimeTypeMappingsRevision}';
+
+	/**
+	 * @return array<string, list<string>>
+	 */
+	public static function all(): array {
+		return [
+${[...mimeTypeMappings].map(([extension, mapping]) => `\t\t\t'${escapePhpString(extension)}' => [${mapping.map(mime => `'${escapePhpString(mime)}'`).join(', ')}],`).join('\n')}
+		];
+	}
 }
+`;
 
-function formatObject(value) {
-  return `Object.freeze(${JSON.stringify(value, null, 2)})`;
+await writeFile(resolve('lib/Generated/MimeTypeMappings.php'), mimeTypeMappingsPhpOutput);
+
+function humanizeIdentifier(value) {
+	return value
+		.split(/[-_]/)
+		.filter(Boolean)
+		.map(word => word[0]?.toUpperCase() + word.slice(1))
+		.join(' ');
 }
 
 function escapePhpString(value) {
-  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+	return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
