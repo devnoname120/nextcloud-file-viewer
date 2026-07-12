@@ -3,6 +3,12 @@
   "description": "Universal File Viewer for Nextcloud, powered by Flyfish File Viewer",
   "type": "project",
   "license": "AGPL-3.0-or-later",
+  "homepage": "https://github.com/devnoname120/nextcloud-file-viewer",
+  "support": {
+    "docs": "https://github.com/devnoname120/nextcloud-file-viewer#readme",
+    "issues": "https://github.com/devnoname120/nextcloud-file-viewer/issues",
+    "source": "https://github.com/devnoname120/nextcloud-file-viewer"
+  },
   "autoload": {
     "psr-4": {
       "OCA\\FileViewer\\": "lib/"

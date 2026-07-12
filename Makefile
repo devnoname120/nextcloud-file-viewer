@@ -11,7 +11,7 @@ STAGED_APP := $(STAGING_DIR)/$(APP_ID)
 APPSTORE_PACKAGE := $(ARTIFACTS_DIR)/$(APP_ID)-$(APP_VERSION).tar.gz
 NPM_STAMP := build/deps/npm.stamp
 
-RELEASE_PATHS := appinfo css img js lib templates viewer
+RELEASE_PATHS := LICENSE CHANGELOG.md appinfo css img js lib templates viewer
 
 .PHONY: all audit browser-test build clean dist npm-deps php-lint prepare-release test
 
@@ -68,5 +68,7 @@ dist: audit test browser-test
 		fi; \
 		cp -R "$$path" "$(STAGED_APP)/"; \
 	done
+	find "$(STAGED_APP)" -name .DS_Store -delete
+	cp CHANGELOG.md "$(STAGED_APP)/CHANGELOG.en.md"
 	tar -czf "$(APPSTORE_PACKAGE)" -C "$(STAGING_DIR)" "$(APP_ID)"
 	@echo "Built $(APPSTORE_PACKAGE)"

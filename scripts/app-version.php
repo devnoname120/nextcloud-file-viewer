@@ -74,15 +74,23 @@ function setVersion(string $file, string $version): void {
 	$screenshotUrl = 'https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v'
 		. $version
 		. '/appinfo/screenshot.jpg';
+	$thumbnailUrl = 'https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v'
+		. $version
+		. '/appinfo/screenshot-small.jpg';
+	$screenshotTag = '<screenshot small-thumbnail="'
+		. $thumbnailUrl
+		. '">'
+		. $screenshotUrl
+		. '</screenshot>';
 	$updated = preg_replace(
-		'/(<screenshot>)[^<]+(<\/screenshot>)/',
-		'${1}' . $screenshotUrl . '${2}',
+		'/<screenshot(?:\s[^>]*)?>[^<]+<\/screenshot>/',
+		$screenshotTag,
 		$updated,
 		1,
 		$screenshotCount,
 	);
 	if ($updated === null || $screenshotCount !== 1) {
-		fwrite(STDERR, "Could not update <screenshot> tag in {$file}\n");
+		fwrite(STDERR, "Could not update <screenshot> URLs in {$file}\n");
 		exit(1);
 	}
 

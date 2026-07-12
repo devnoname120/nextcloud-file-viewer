@@ -30,7 +30,7 @@ test('app version helper reads, validates, and updates appinfo/info.xml', async 
     assert.match(updatedInfo, /<version>9\.8\.7<\/version>/);
     assert.match(
       updatedInfo,
-      /<screenshot>https:\/\/raw\.githubusercontent\.com\/devnoname120\/nextcloud-file-viewer\/refs\/tags\/v9\.8\.7\/appinfo\/screenshot\.jpg<\/screenshot>/,
+      /<screenshot small-thumbnail="https:\/\/raw\.githubusercontent\.com\/devnoname120\/nextcloud-file-viewer\/refs\/tags\/v9\.8\.7\/appinfo\/screenshot-small\.jpg">https:\/\/raw\.githubusercontent\.com\/devnoname120\/nextcloud-file-viewer\/refs\/tags\/v9\.8\.7\/appinfo\/screenshot\.jpg<\/screenshot>/,
     );
 
     const invalidUpdate = spawnSync('php', ['scripts/app-version.php', 'set', '9.8', tempInfo], {
@@ -52,12 +52,18 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   const npmConfig = await readFile('.npmrc', 'utf8');
   const appInfo = await readFile('appinfo/info.xml', 'utf8');
   const appStoreScreenshot = await readFile('appinfo/screenshot.jpg');
+  const appStoreThumbnail = await readFile('appinfo/screenshot-small.jpg');
+  const changelog = await readFile('CHANGELOG.md', 'utf8');
+  const license = await readFile('LICENSE', 'utf8');
   const readme = await readFile('README.md', 'utf8');
 
   assert.match(makefile, /^APP_ID\s*:=\s*fileviewer$/m);
   assert.match(makefile, /APP_VERSION\s*:=\s*\$\(shell php scripts\/app-version\.php get\)/);
   assert.match(makefile, /APPSTORE_PACKAGE\s*:=\s*\$\(ARTIFACTS_DIR\)\/\$\(APP_ID\)-\$\(APP_VERSION\)\.tar\.gz/);
   assert.match(makefile, /RELEASE_PATHS\s*:=.*appinfo.*css.*img.*js.*lib.*templates.*viewer/);
+  assert.match(makefile, /RELEASE_PATHS\s*:=.*LICENSE.*CHANGELOG\.md.*appinfo/);
+  assert.match(makefile, /find "\$\(STAGED_APP\)" -name \.DS_Store -delete/);
+  assert.match(makefile, /cp CHANGELOG\.md "\$\(STAGED_APP\)\/CHANGELOG\.en\.md"/);
   assert.match(makefile, /npm version "\$\(VERSION\)" --no-git-tag-version --ignore-scripts --allow-same-version/);
   assert.match(makefile, /^\$\(NPM_STAMP\): package\.json package-lock\.json \.npmrc$/m);
   assert.match(makefile, /npm ci --strict-allow-scripts/);
@@ -103,6 +109,12 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.equal(parsedPackageJson.description, 'Universal File Viewer for Nextcloud, powered by Flyfish File Viewer');
   assert.equal(composerJson.name, 'devnoname120/nextcloud-file-viewer');
   assert.equal(composerJson.description, 'Universal File Viewer for Nextcloud, powered by Flyfish File Viewer');
+  assert.equal(composerJson.homepage, 'https://github.com/devnoname120/nextcloud-file-viewer');
+  assert.deepEqual(composerJson.support, {
+    docs: 'https://github.com/devnoname120/nextcloud-file-viewer#readme',
+    issues: 'https://github.com/devnoname120/nextcloud-file-viewer/issues',
+    source: 'https://github.com/devnoname120/nextcloud-file-viewer',
+  });
   assert.equal(parsedPackageJson.scripts['audit:production'], 'npm audit --omit=dev --audit-level=low');
   assert.equal(parsedPackageJson.scripts['verify:dependencies'], 'node scripts/verify-dependencies.mjs');
   assert.match(parsedPackageJson.scripts.build, /npm run verify:copied-assets$/);
@@ -131,14 +143,33 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.match(appInfo, /<nextcloud min-version="33" max-version="35" \/>/);
   assert.match(appInfo, /<id>fileviewer<\/id>/);
   assert.match(appInfo, /<name>Universal File Viewer<\/name>/);
+  assert.match(appInfo, /<licence>AGPL-3\.0-or-later<\/licence>/);
+  assert.doesNotMatch(appInfo, /<licence>agpl<\/licence>/);
   assert.match(appInfo, /<namespace>FileViewer<\/namespace>/);
-  const appStoreScreenshotUrl = appInfo.match(/<screenshot>([^<]+)<\/screenshot>/)?.[1];
+  assert.match(appInfo, /<user>https:\/\/github\.com\/devnoname120\/nextcloud-file-viewer#supported-formats<\/user>/);
+  assert.match(appInfo, /<admin>https:\/\/github\.com\/devnoname120\/nextcloud-file-viewer#sandbox<\/admin>/);
+  assert.match(appInfo, /<developer>https:\/\/github\.com\/devnoname120\/nextcloud-file-viewer#build<\/developer>/);
+  assert.match(appInfo, /<discussion>https:\/\/github\.com\/devnoname120\/nextcloud-file-viewer\/discussions<\/discussion>/);
+  assert.match(appInfo, /<bugs>https:\/\/github\.com\/devnoname120\/nextcloud-file-viewer\/issues<\/bugs>/);
+  assert.match(appInfo, /<repository type="git">https:\/\/github\.com\/devnoname120\/nextcloud-file-viewer\.git<\/repository>/);
+  const screenshotMetadata = appInfo.match(/<screenshot small-thumbnail="([^"]+)">([^<]+)<\/screenshot>/);
+  assert.ok(screenshotMetadata);
+  const [, appStoreThumbnailUrl, appStoreScreenshotUrl] = screenshotMetadata;
   assert.equal(
     appStoreScreenshotUrl,
     `https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v${appVersion}/appinfo/screenshot.jpg`,
   );
+  assert.equal(
+    appStoreThumbnailUrl,
+    `https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/tags/v${appVersion}/appinfo/screenshot-small.jpg`,
+  );
   assert.ok(appStoreScreenshot.length > 10_000, 'App Store screenshot must not be empty');
   assert.deepEqual([...appStoreScreenshot.subarray(0, 3)], [0xff, 0xd8, 0xff]);
+  assert.ok(appStoreThumbnail.length > 5_000, 'App Store thumbnail must not be empty');
+  assert.deepEqual([...appStoreThumbnail.subarray(0, 3)], [0xff, 0xd8, 0xff]);
+  assert.match(license, /^GNU AFFERO GENERAL PUBLIC LICENSE$/m);
+  assert.match(license, /^Version 3, 19 November 2007$/m);
+  assert.ok(changelog.includes(`## [${appVersion}]`), `Changelog must contain an entry for ${appVersion}`);
   assert.match(readme, /^# Universal File Viewer$/m);
 
   const description = appInfo.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)?.[1] || '';

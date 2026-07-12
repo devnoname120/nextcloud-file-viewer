@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { DOMParser } from '@xmldom/xmldom';
@@ -48,6 +48,13 @@ test('app icon remains compatible with Nextcloud icon rendering', async () => {
   const nextcloud34Document = parseSvg(nextcloud34List);
   assert.equal(nextcloud34Document.documentElement.hasAttribute('fill'), false);
   assert.equal(nextcloud34Document.getElementsByTagName('path').length, 1);
+});
+
+test('app icon does not ship a stale raster fallback', async () => {
+  await assert.rejects(
+    access('img/app.png'),
+    (error) => error?.code === 'ENOENT',
+  );
 });
 
 test('admin settings icon uses the same glyph in a dark source color', async () => {
