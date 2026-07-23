@@ -29,6 +29,8 @@ test('canonical mappings resolve known extension ambiguities for the viewer form
 	assert.deepEqual(mappings.get('rs'), ['text/x-rust']);
 	assert.deepEqual(mappings.get('xyz'), ['model/x-xyz']);
 	assert.deepEqual(mappings.get('http'), ['text/x-http']);
+	assert.deepEqual(mappings.get('ppt'), ['application/vnd.ms-powerpoint']);
+	assert.deepEqual(mappings.get('tsv'), ['text/tab-separated-values']);
 });
 
 test('registered and active formats receive safe response MIME alternatives', () => {

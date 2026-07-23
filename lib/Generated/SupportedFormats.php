@@ -56,6 +56,13 @@ final class SupportedFormats {
 				'extension' => 'dot',
 			],
 			[
+				'id' => 'format:ppt',
+				'label' => 'PPT',
+				'category' => 'office',
+				'categoryLabel' => 'Office',
+				'extension' => 'ppt',
+			],
+			[
 				'id' => 'format:pptx',
 				'label' => 'PPTX',
 				'category' => 'office',
@@ -173,6 +180,13 @@ final class SupportedFormats {
 				'category' => 'office',
 				'categoryLabel' => 'Office',
 				'extension' => 'csv',
+			],
+			[
+				'id' => 'format:tsv',
+				'label' => 'TSV',
+				'category' => 'office',
+				'categoryLabel' => 'Office',
+				'extension' => 'tsv',
 			],
 			[
 				'id' => 'format:ods',

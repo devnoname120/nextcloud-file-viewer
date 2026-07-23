@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import { verifyDependencies } from '../scripts/verify-dependencies.mjs';
 
-const VERSION = '2.1.23';
+const VERSION = '2.2.3';
 
 async function writeJson(path, value) {
   await mkdir(join(path, '..'), { recursive: true });
@@ -17,8 +17,8 @@ async function createDependencyFixture(overrides = {}) {
   const rootDir = await mkdtemp(join(tmpdir(), 'fileviewer-dependencies-'));
   const packageJson = {
     dependencies: {
-      '@file-viewer/core': '^2.1.23',
-      '@file-viewer/web-full': '^2.1.23',
+      '@file-viewer/core': '^2.2.3',
+      '@file-viewer/web-full': '^2.2.3',
     },
   };
   const packageLock = {
@@ -118,7 +118,7 @@ test('dependency verification rejects a mismatched copied Flyfish manifest', asy
   try {
     await assert.rejects(
       verifyDependencies({ rootDir, copiedAssets: true }),
-      /Copied Flyfish manifest version 9\.9\.9 does not match 2\.1\.23/,
+      /Copied Flyfish manifest version 9\.9\.9 does not match 2\.2\.3/,
     );
   } finally {
     await rm(rootDir, { recursive: true, force: true });

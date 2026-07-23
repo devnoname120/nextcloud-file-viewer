@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-24
+
+### Added
+
+- Added legacy PowerPoint (`.ppt`) and tab-separated value (`.tsv`) previews to the generated format settings and Nextcloud MIME mappings.
+
+### Changed
+
+- Updated the bundled Flyfish File Viewer packages from 2.1.23 to 2.2.3, including the self-hosted PPT, OCCT model, PDF font, CAD, and EPUB runtime updates.
+- Run the new STEP/IGES/BREP parser worker inside the existing opaque sandbox worker boundary.
+- Use the legacy PPT renderer's asynchronous direct path inside the opaque iframe because its integrity-verifying Worker requires Web Crypto, which is unavailable to opaque Chromium workers.
+
 ## [0.4.0] - 2026-07-12
 
 ### Changed
@@ -60,7 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.2.0...v0.3.0

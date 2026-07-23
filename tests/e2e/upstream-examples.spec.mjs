@@ -69,6 +69,16 @@ const exampleCases = [
     match: { selector: '.pptx-viewer-shell' },
   },
   {
+    name: 'PowerPoint binary PPT',
+    file: 'office-demo.ppt',
+    match: { selector: '.ppt-binary-shell' },
+    expectedAttribute: {
+      selector: '.ppt-binary-shell',
+      name: 'data-ppt-runtime-mode',
+      value: 'direct',
+    },
+  },
+  {
     name: 'OpenDocument ODT',
     file: 'document.odt',
     match: { selector: '.odf-viewer' },
@@ -141,6 +151,8 @@ const exampleCases = [
     name: 'CAD DWG',
     file: 'sample.dwg',
     match: { selectors: ['.cad-shell', '.cad-viewer-canvas'] },
+    expectWorker: true,
+    expectWorkerStopped: true,
   },
   {
     name: '3D GLTF',
@@ -151,6 +163,11 @@ const exampleCases = [
     name: '3D STEP',
     file: 'model.step',
     match: { selector: '.model-viewer' },
+    expectedAttribute: {
+      selector: '.model-viewer',
+      name: 'data-model-import',
+      value: 'worker',
+    },
   },
   {
     name: 'GeoJSON',
@@ -268,7 +285,7 @@ test.describe('upstream Flyfish viewer examples', () => {
         : await mountSandboxedFrame(page, server, channel, {
           sandbox: DEFAULT_FRAME_SANDBOX,
         });
-      const workerInfoPromise = exampleCase.name === 'CAD DWG'
+      const workerInfoPromise = exampleCase.expectWorker
         ? waitForNextWorkerInfo(page, 90000)
         : null;
 
@@ -286,10 +303,41 @@ test.describe('upstream Flyfish viewer examples', () => {
         }
         expect(await collectDeepText(frame)).not.toContain(exampleCase.forbiddenText);
       }
+      if (exampleCase.expectedAttribute) {
+        const { selector, name, value } = exampleCase.expectedAttribute;
+        await frame.waitForFunction(({ cssSelector, attributeName, expectedValue }) => {
+          function findMatch(node) {
+            if (node.nodeType === Node.ELEMENT_NODE && node.matches(cssSelector)) {
+              return node;
+            }
+            if (node.shadowRoot) {
+              const shadowMatch = findMatch(node.shadowRoot);
+              if (shadowMatch) {
+                return shadowMatch;
+              }
+            }
+            for (const child of node.childNodes) {
+              const childMatch = findMatch(child);
+              if (childMatch) {
+                return childMatch;
+              }
+            }
+            return null;
+          }
+
+          return findMatch(document)?.getAttribute(attributeName) === expectedValue;
+        }, {
+          cssSelector: selector,
+          attributeName: name,
+          expectedValue: value,
+        }, { timeout: 90000 });
+      }
       if (workerInfoPromise) {
         const workerInfo = await workerInfoPromise;
         expect(workerInfo.url).toMatch(/^blob:null\//);
         expect(workerInfo.origin).toBe('null');
+      }
+      if (exampleCase.expectWorkerStopped) {
         expect(await page.evaluate(() => window.__fileViewerWorkers.size)).toBe(0);
         expect(await collectDeepText(frame)).not.toContain('DWG worker failed');
       }

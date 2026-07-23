@@ -51,6 +51,9 @@ test('parser workers are prepared and created inside the opaque frame', async ()
   assert.match(frameSource, /signal: workerPreparationController \? workerPreparationController\.signal : undefined/);
   assert.match(frameSource, /disposed = true;\s+loadSequence \+= 1;/);
   assert.match(frameSource, /credentials: 'omit'/);
+  assert.match(frameSource, /pptModuleUrl:[\s\S]*?pptWorker: false/);
+  assert.match(frameSource, /MODEL_WORKER_EXTENSIONS[\s\S]*?wasm\/model\/occt-worker\.js/);
+  assert.match(frameSource, /SPREADSHEET_EXTENSIONS[\s\S]*?'tsv'/);
   assert.match(frameSource, /sandboxWorkerObjectUrls\.get\(requestedUrl\)/);
   assert.match(frameSource, /new NativeWorker\(objectUrl, workerOptions\)/);
   assert.match(frameSource, /activeSandboxWorkers\.delete\(worker\)/);

@@ -51,9 +51,10 @@
   var CONNECTED_MESSAGE = 'nextcloud-file-viewer:connected';
   var CLOSE_REQUEST_MESSAGE = 'nextcloud-file-viewer:close-request';
   var DOCX_EXTENSIONS = new Set(['docx', 'docm', 'dotx', 'dotm']);
+  var MODEL_WORKER_EXTENSIONS = new Set(['brep', 'iges', 'igs', 'step', 'stp']);
   var PRESENTATION_EXTENSIONS = new Set(['odp', 'otp', 'pot', 'potm', 'potx', 'pps', 'ppsm', 'ppsx', 'ppt', 'pptm', 'pptx']);
   var WORKER_PRESENTATION_EXTENSIONS = new Set(['potm', 'potx', 'ppsm', 'ppsx', 'pptm', 'pptx']);
-  var SPREADSHEET_EXTENSIONS = new Set(['xlsx', 'xltx', 'xlsm', 'xlsb', 'xls', 'xlt', 'xltm', 'csv', 'ods', 'fods', 'numbers']);
+  var SPREADSHEET_EXTENSIONS = new Set(['xlsx', 'xltx', 'xlsm', 'xlsb', 'xls', 'xlt', 'xltm', 'csv', 'tsv', 'ods', 'fods', 'numbers']);
   var SPREADSHEET_WORKER_THRESHOLD = 1024 * 1024;
 
   function createProtocolMessage(type, data) {
@@ -198,13 +199,27 @@
         cMapUrl: resolveAssetUrl('vendor/pdf/cmaps/'),
         wasmUrl: resolveAssetUrl('vendor/pdf/wasm/'),
         standardFontDataUrl: resolveAssetUrl('vendor/pdf/standard_fonts/'),
+        cjkFontFallbackPath: resolveAssetUrl('vendor/pdf/fonts/'),
       },
       presentation: {
+        pptModuleUrl: resolveAssetUrl('vendor/ppt/index.mjs'),
+        pptWasmUrl: resolveAssetUrl('vendor/ppt/ppt-native.wasm'),
+        pptFontUrl: resolveAssetUrl('vendor/ppt/ppt-font-cjk.otf'),
+        // The opaque sandbox keeps parser code away from Nextcloud, but
+        // Chromium does not expose Web Crypto to a blob:null Worker. The PPT
+        // runtime needs SHA-256 to verify its WASM and font, so select its
+        // supported asynchronous direct path instead of failing a Worker first.
+        pptWorker: false,
         workerUrl: resolveAssetUrl('vendor/pptx/pptx.worker.js'),
         workerType: 'module',
       },
       spreadsheet: {
         workerUrl: resolveAssetUrl('vendor/xlsx/sheet.worker.js'),
+      },
+      model: {
+        workerUrl: resolveAssetUrl('wasm/model/occt-worker.js'),
+        runtimeUrl: resolveAssetUrl('wasm/model/occt-import-js.js'),
+        wasmUrl: resolveAssetUrl('wasm/model/occt-import-js.wasm'),
       },
     };
 
@@ -358,6 +373,9 @@
     }
     if (extension === 'dwg') {
       return 'wasm/cad/dwg-worker.js';
+    }
+    if (MODEL_WORKER_EXTENSIONS.has(extension)) {
+      return 'wasm/model/occt-worker.js';
     }
     return '';
   }

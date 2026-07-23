@@ -8,7 +8,7 @@ import {
 } from '../src/supportedFormats.generated.js';
 
 test('supported extension list includes representative Flyfish renderer formats', () => {
-  for (const extension of ['pdf', 'docx', 'xlsx', 'pptx', 'zip', 'dwg', 'epub', 'svg', 'mp4', 'mp3', 'md']) {
+  for (const extension of ['pdf', 'docx', 'xlsx', 'tsv', 'ppt', 'pptx', 'zip', 'dwg', 'epub', 'svg', 'mp4', 'mp3', 'md']) {
     assert.ok(SUPPORTED_EXTENSIONS.includes(extension), `${extension} should be supported`);
   }
 });
@@ -40,13 +40,15 @@ test('representative aliases have human-readable labels while retaining distinct
 	assert.equal(formatsByExtension.md.categoryLabel, 'Code and text');
 	assert.equal(formatsByExtension.markdown.categoryLabel, 'Code and text');
 	assert.equal(formatsByExtension.epub.label, 'EPUB');
+	assert.equal(formatsByExtension.ppt.label, 'PPT');
+	assert.equal(formatsByExtension.tsv.label, 'TSV');
 	assert.notEqual(formatsByExtension.jpg.id, formatsByExtension.jpeg.id);
 });
 
 test('generated PHP supported format inventory mirrors the JavaScript definitions', async () => {
 	const phpSource = await readFile('lib/Generated/SupportedFormats.php', 'utf8');
 
-	for (const extension of ['pdf', 'jpg', 'jpeg', 'md', 'markdown', 'epub', 'dwg']) {
+	for (const extension of ['pdf', 'jpg', 'jpeg', 'md', 'markdown', 'epub', 'ppt', 'tsv', 'dwg']) {
 		assert.ok(phpSource.includes(`'id' => 'format:${extension}'`));
 		assert.ok(phpSource.includes(`'extension' => '${extension}'`));
 	}

@@ -24,8 +24,8 @@ matrix.
 | Legacy Word | `doc`, `dot` |
 | Compatible documents | `rtf`, `odt` |
 | Excel | `xlsx`, `xltx` |
-| Excel-compatible | `xlsm`, `xlsb`, `xls`, `xlt`, `xltm`, `csv`, `ods`, `fods`, `numbers` |
-| PowerPoint | `pptx`, `pptm`, `potx`, `potm`, `ppsx`, `ppsm`, `odp` |
+| Excel-compatible | `xlsm`, `xlsb`, `xls`, `xlt`, `xltm`, `csv`, `tsv`, `ods`, `fods`, `numbers` |
+| PowerPoint | `ppt`, `pptx`, `pptm`, `potx`, `potm`, `ppsx`, `ppsm`, `odp` |
 | PDF | `pdf` |
 | OFD | `ofd` |
 | Typst | `typ`, `typst` |
@@ -126,12 +126,14 @@ EPUB boundary closes the old channel, rotates its token, and replaces the iframe
 the browser applies the new origin policy to a fresh document.
 
 Parser workers do not run in the parent Nextcloud page. For PDF, DOCX-family,
-PPTX-family, DWG, and spreadsheet files of at least 1 MiB, the frame fetches the
+PPTX-family, DWG, STEP/IGES/BREP, and spreadsheet files of at least 1 MiB, the frame fetches the
 exact configured bundled worker without credentials, creates a frame-owned `blob:`
 URL, and starts the worker from inside the sandbox. Under the default sandbox these
 workers have the opaque `null` origin. Libarchive formats use the same frame-owned
-`blob:` isolation model. Smaller spreadsheet files parse on the iframe's main
-thread, which is also sandboxed.
+`blob:` isolation model. Legacy PPT uses Flyfish's asynchronous direct path because
+its integrity-verifying Worker requires Web Crypto, which Chromium does not expose
+to an opaque `blob:null` Worker. Smaller spreadsheet files and legacy PPT parse on
+the iframe's main thread, which is also sandboxed.
 
 The only default-page CSP additions are `frame-src 'self' blob:`, and they are added
 only to responses that dispatch Nextcloud's Viewer-loading event. The app does not

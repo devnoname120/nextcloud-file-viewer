@@ -43,6 +43,13 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "extension": "dot"
   },
   {
+    "id": "format:ppt",
+    "label": "PPT",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "ppt"
+  },
+  {
     "id": "format:pptx",
     "label": "PPTX",
     "category": "office",
@@ -160,6 +167,13 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "category": "office",
     "categoryLabel": "Office",
     "extension": "csv"
+  },
+  {
+    "id": "format:tsv",
+    "label": "TSV",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "tsv"
   },
   {
     "id": "format:ods",
@@ -1578,6 +1592,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "potx",
   "ppsm",
   "ppsx",
+  "ppt",
   "pptm",
   "pptx",
   "proto",
@@ -1607,6 +1622,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "tiff",
   "toml",
   "ts",
+  "tsv",
   "tsx",
   "ttf",
   "txt",
