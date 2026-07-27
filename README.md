@@ -1,4 +1,4 @@
-# Universal File Viewer
+# Universal File Viewer <a href="https://ateeducacion.github.io/nextcloud-playground/?blueprint-url=https://raw.githubusercontent.com/devnoname120/nextcloud-file-viewer/refs/heads/main/blueprint.json" target="_blank" rel="noopener noreferrer"><img width="150px" src="https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/refs/heads/main/assets/playground-preview-button.svg" alt="Open in Nextcloud Playground" width="224"></a>
 
 Universal File Viewer is a Nextcloud app that registers [Flyfish File Viewer](https://github.com/flyfish-dev/file-viewer) as a handler for
 the 200+ file types supported by Flyfish.

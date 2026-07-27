@@ -1,0 +1,230 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/main/assets/blueprints/blueprint-schema.json",
+  "meta": {
+    "title": "Universal File Viewer Playground",
+    "author": "devnoname120",
+    "description": "A fresh Nextcloud in the browser with Universal File Viewer installed and representative samples for office documents, archives, email, CAD, 3D, geospatial data, diagrams, ebooks, media, source code, and data files."
+  },
+  "debug": { "enabled": false },
+  "browserCompatibility": { "sandboxedIframes": "service-worker" },
+  "landingPage": "/index.php/apps/files/files?dir=/File%20Viewer%20samples",
+  "siteOptions": {
+    "title": "Nextcloud + Universal File Viewer",
+    "locale": "en",
+    "timezone": "UTC"
+  },
+  "admin": {
+    "username": "admin",
+    "password": "admin",
+    "email": "admin@example.com"
+  },
+  "steps": [
+    { "step": "disableApp", "app": "firstrunwizard" },
+    { "step": "setConfig", "app": "core", "key": "whatsNewEnabled", "value": "no" },
+    {
+      "step": "installApp",
+      "appId": "fileviewer",
+      "url": "https://github-proxy.exelearning.dev/?repo=devnoname120/nextcloud-file-viewer&release=v0.4.0&asset=fileviewer-0.4.0.tar.gz"
+    },
+    {
+      "step": "runOcc",
+      "args": [
+        "config:app:set",
+        "fileviewer",
+        "sandbox",
+        "--value=allow-scripts allow-same-origin allow-downloads allow-forms allow-modals allow-popups allow-presentation"
+      ]
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/00-README.md",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/README.md"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/01-word-openxml.docx",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/word.docx"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/02-word-binary.doc",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/test.doc"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/03-presentation.pptx",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/ppt.pptx"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/04-opendocument-text.odt",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/document.odt"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/05-opendocument-presentation.odp",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/slides.odp"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/06-spreadsheet.xlsx",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/excel.xlsx"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/07-spreadsheet-binary.xls",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/excel.xls"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/08-pdf.pdf",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/pdf.pdf"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/09-ofd.ofd",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/ofd.ofd"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/10-typst.typ",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/report.typ"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/11-archive.zip",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/archive.zip"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/12-email.eml",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/sample.eml"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/13-email-msg.msg",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/sample.msg"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/14-eda-gds.gds",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/layout.gds"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/15-eda-orcad.olb",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/sample.olb"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/16-cad-dxf.dxf",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/drawing.dxf"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/17-cad-dwg.dwg",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/sample.dwg"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/18-model-gltf.gltf",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/model.gltf"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/19-model-step.step",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/model.step"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/20-geojson.geojson",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/map.geojson"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/21-kml.kml",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/route.kml"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/22-excalidraw.excalidraw",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/flow.excalidraw"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/23-drawio.drawio",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/process.drawio"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/24-mermaid.mermaid",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/architecture.mermaid"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/25-plantuml.plantuml",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/sequence.plantuml"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/26-xmind.xmind",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/mindmap.xmind"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/27-epub.epub",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/book.epub"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/28-umd.umd",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/book.umd"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/29-image-png.png",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/pic.png"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/30-image-svg.svg",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/vector.svg"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/31-markdown.md",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/markdown.md"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/32-code-typescript.ts",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/code.ts"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/33-video.mp4",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/video.mp4"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/34-audio.mp3",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/audio.mp3"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/35-data-sqlite.sqlite",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/sample.sqlite"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/36-data-wasm.wasm",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/module.wasm"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/File Viewer samples/37-psd.psd",
+      "url": "https://raw.githubusercontent.com/flyfish-dev/file-viewer/v2.1.23/apps/viewer-demo/public/example/design.psd"
+    },
+    { "step": "runOcc", "args": ["files:scan", "admin"] }
+  ]
+}
