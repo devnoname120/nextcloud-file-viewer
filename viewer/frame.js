@@ -52,6 +52,7 @@
   var CLOSE_REQUEST_MESSAGE = 'nextcloud-file-viewer:close-request';
   var DOCX_EXTENSIONS = new Set(['docx', 'docm', 'dotx', 'dotm']);
   var MODEL_WORKER_EXTENSIONS = new Set(['brep', 'iges', 'igs', 'step', 'stp']);
+  var SANDBOX_WORKER_VERSION_QUERY_KEYS = new Set(['file-viewer-cad', 'file-viewer-docx']);
   var PRESENTATION_EXTENSIONS = new Set(['odp', 'otp', 'pot', 'potm', 'potx', 'pps', 'ppsm', 'ppsx', 'ppt', 'pptm', 'pptx']);
   var WORKER_PRESENTATION_EXTENSIONS = new Set(['potm', 'potx', 'ppsm', 'ppsx', 'pptm', 'pptx']);
   var SPREADSHEET_EXTENSIONS = new Set(['xlsx', 'xltx', 'xlsm', 'xlsb', 'xls', 'xlt', 'xltm', 'csv', 'tsv', 'ods', 'fods', 'numbers']);
@@ -216,6 +217,11 @@
       spreadsheet: {
         workerUrl: resolveAssetUrl('vendor/xlsx/sheet.worker.js'),
       },
+      cad: {
+        wasmPath: resolveAssetUrl('wasm/cad/0.8.0/'),
+        workerUrl: resolveAssetUrl('wasm/cad/0.8.0/dwg-worker.js'),
+        dwfWasmUrl: resolveAssetUrl('wasm/cad/0.8.0/dwfv-render.wasm'),
+      },
       model: {
         workerUrl: resolveAssetUrl('wasm/model/occt-worker.js'),
         runtimeUrl: resolveAssetUrl('wasm/model/occt-import-js.js'),
@@ -372,7 +378,7 @@
       return 'vendor/xlsx/sheet.worker.js';
     }
     if (extension === 'dwg') {
-      return 'wasm/cad/dwg-worker.js';
+      return 'wasm/cad/0.8.0/dwg-worker.js';
     }
     if (MODEL_WORKER_EXTENSIONS.has(extension)) {
       return 'wasm/model/occt-worker.js';
@@ -437,6 +443,20 @@
     }
   }
 
+  function normalizePreparedWorkerUrl(scriptUrl) {
+    var url = new URL(scriptUrl);
+    var queryKeys = Array.from(url.searchParams.keys());
+    if (
+      url.origin === appOrigin
+      && !url.hash
+      && queryKeys.length === 1
+      && SANDBOX_WORKER_VERSION_QUERY_KEYS.has(queryKeys[0])
+    ) {
+      url.search = '';
+    }
+    return url.href;
+  }
+
   function installSandboxWorkerFactory() {
     if (typeof NativeWorker !== 'function') {
       return;
@@ -451,19 +471,21 @@
       }
 
       var objectUrl = requestedUrl;
+      var preparedUrl = requestedUrl;
       var workerOptions = options;
       if (new URL(requestedUrl).protocol === 'blob:') {
         workerOptions = resolveNativeWorkerOptions(requestedUrl, options);
       } else {
-        objectUrl = sandboxWorkerObjectUrls.get(requestedUrl);
+        preparedUrl = normalizePreparedWorkerUrl(requestedUrl);
+        objectUrl = sandboxWorkerObjectUrls.get(preparedUrl);
         if (!objectUrl) {
           throw new Error('Parser worker was not prepared inside the sandbox: ' + requestedUrl);
         }
         if (
-          requestedUrl === resolveAssetUrl('vendor/pdf/pdf.worker.mjs')
-          || requestedUrl === resolveAssetUrl('vendor/pptx/pptx.worker.js')
-          || requestedUrl === resolveAssetUrl('vendor/xlsx/sheet.worker.js')
-          || requestedUrl === resolveAssetUrl('wasm/cad/dwg-worker.js')
+          preparedUrl === resolveAssetUrl('vendor/pdf/pdf.worker.mjs')
+          || preparedUrl === resolveAssetUrl('vendor/pptx/pptx.worker.js')
+          || preparedUrl === resolveAssetUrl('vendor/xlsx/sheet.worker.js')
+          || preparedUrl === resolveAssetUrl('wasm/cad/0.8.0/dwg-worker.js')
         ) {
           // These self-contained bundles fail during module-worker startup
           // under an opaque sandbox origin, but are designed to run as classic

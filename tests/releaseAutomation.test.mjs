@@ -170,13 +170,15 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.match(license, /^GNU AFFERO GENERAL PUBLIC LICENSE$/m);
   assert.match(license, /^Version 3, 19 November 2007$/m);
   assert.ok(changelog.includes(`## [${appVersion}]`), `Changelog must contain an entry for ${appVersion}`);
-  assert.match(readme, /^# Universal File Viewer$/m);
+  assert.match(readme, /^# Universal File Viewer(?:\s|$)/m);
 
   const description = appInfo.match(/<description><!\[CDATA\[([\s\S]*?)\]\]><\/description>/)?.[1] || '';
-  const expectedStoreDescription = readme.replace(
-    /\n## Build\n[\s\S]*?\n## Sandbox\n/,
-    '\n## Sandbox\n',
-  );
+  const expectedStoreDescription = readme
+    .replace(/^# Universal File Viewer[^\n]*$/m, '# Universal File Viewer')
+    .replace(
+      /\n## Build\n[\s\S]*?\n## Sandbox\n/,
+      '\n## Sandbox\n',
+    );
   assert.equal(description.trim(), expectedStoreDescription.trim());
   assert.doesNotMatch(description, /^## Build$/m);
   assert.doesNotMatch(description, /npm ci/);

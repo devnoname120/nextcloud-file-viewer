@@ -339,7 +339,13 @@ test.describe('upstream Flyfish viewer examples', () => {
       }
       if (exampleCase.expectWorkerStopped) {
         expect(await page.evaluate(() => window.__fileViewerWorkers.size)).toBe(0);
-        expect(await collectDeepText(frame)).not.toContain('DWG worker failed');
+        const renderedText = await collectDeepText(frame);
+        expect(renderedText).not.toContain('DWG worker failed');
+        expect(renderedText).not.toContain('Parser worker was not prepared inside the sandbox');
+        expect(await frame.evaluate(() => {
+          const errorState = document.querySelector('.cad-state.error');
+          return !errorState || errorState.hidden;
+        })).toBe(true);
       }
     });
   }

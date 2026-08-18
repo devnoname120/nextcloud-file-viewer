@@ -54,7 +54,11 @@ test('parser workers are prepared and created inside the opaque frame', async ()
   assert.match(frameSource, /pptModuleUrl:[\s\S]*?pptWorker: false/);
   assert.match(frameSource, /MODEL_WORKER_EXTENSIONS[\s\S]*?wasm\/model\/occt-worker\.js/);
   assert.match(frameSource, /SPREADSHEET_EXTENSIONS[\s\S]*?'tsv'/);
-  assert.match(frameSource, /sandboxWorkerObjectUrls\.get\(requestedUrl\)/);
+  assert.match(frameSource, /cad: \{[\s\S]*?wasm\/cad\/0\.8\.0\/dwg-worker\.js/);
+  assert.match(frameSource, /extension === 'dwg'[\s\S]*?wasm\/cad\/0\.8\.0\/dwg-worker\.js/);
+  assert.match(frameSource, /SANDBOX_WORKER_VERSION_QUERY_KEYS[\s\S]*?'file-viewer-cad'[\s\S]*?'file-viewer-docx'/);
+  assert.match(frameSource, /preparedUrl = normalizePreparedWorkerUrl\(requestedUrl\)/);
+  assert.match(frameSource, /sandboxWorkerObjectUrls\.get\(preparedUrl\)/);
   assert.match(frameSource, /new NativeWorker\(objectUrl, workerOptions\)/);
   assert.match(frameSource, /activeSandboxWorkers\.delete\(worker\)/);
   assert.match(frameSource, /NativeRevokeObjectURL\(objectUrl\)/);

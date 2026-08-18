@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-18
+
+### Changed
+
+- Updated the bundled Flyfish File Viewer packages from 2.2.3 to 2.2.9.
+- Use Flyfish CAD 0.8.0's versioned DWG and DWF runtime paths and resolve Flyfish's CAD/DOCX version queries to the already-prepared opaque worker assets.
+- Updated the Nextcloud Playground demo to install version 0.5.1 and use Flyfish 2.2.9 samples.
+
 ## [0.5.0] - 2026-07-24
 
 ### Added
@@ -72,7 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.3.0...v0.3.1
