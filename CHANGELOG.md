@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-25
+
+### Changed
+
+- Updated the Nextcloud Vue integration from 9.8.2 to 9.9.0 and Vue from 3.5.39 to 3.5.41.
+- Updated the development toolchain to Playwright 1.62.1, TypeScript 7.0.2, and Vite 8.2.1.
+- Updated the Nextcloud Playground demo to install version 0.5.2.
+
 ## [0.5.1] - 2026-08-18
 
 ### Changed
@@ -80,7 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.3.1...v0.4.0
