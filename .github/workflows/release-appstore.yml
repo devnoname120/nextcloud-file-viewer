@@ -1,6 +1,9 @@
 name: Release appstore
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
     types: [published]
 
@@ -12,11 +15,13 @@ jobs:
     name: Build and publish appstore release
     runs-on: ubuntu-24.04
     environment: release
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
     steps:
       - name: Checkout release tag
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -32,8 +37,6 @@ jobs:
           coverage: none
 
       - name: Verify release version
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -eu
           app_version="$(php scripts/app-version.php get)"
@@ -60,12 +63,27 @@ jobs:
           fi
           artifact="$1"
           asset_name="$(basename "$artifact")"
-          download_url="https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/${asset_name}"
+          download_url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${asset_name}"
           {
             echo "path=${artifact}"
             echo "asset_name=${asset_name}"
             echo "download_url=${download_url}"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release for pushed tag
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "GitHub release $RELEASE_TAG already exists"
+          else
+            gh release create "$RELEASE_TAG" \
+              --verify-tag \
+              --title "Universal File Viewer ${RELEASE_TAG#v}" \
+              --generate-notes
+          fi
 
       - name: Upload or verify tarball on GitHub release
         env:
@@ -77,16 +95,16 @@ jobs:
           existing_dir="$(mktemp -d)"
           trap 'rm -rf "$existing_dir"' EXIT
           python3 scripts/compare-release-archives.py "$artifact" "$artifact"
-          release_asset_names="$(gh release view "${{ github.event.release.tag_name }}" --json assets --jq '.assets[].name')"
+          release_asset_names="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')"
           if printf '%s\n' "$release_asset_names" | grep -Fqx "$asset_name"; then
-            gh release download "${{ github.event.release.tag_name }}" --pattern "$asset_name" --dir "$existing_dir"
+            gh release download "$RELEASE_TAG" --pattern "$asset_name" --dir "$existing_dir"
             if ! python3 scripts/compare-release-archives.py "$artifact" "$existing_dir/$asset_name"; then
               echo "Release asset $asset_name already exists with different contents"
               exit 1
             fi
             echo "Release asset $asset_name already exists with identical contents"
           else
-            gh release upload "${{ github.event.release.tag_name }}" "$artifact"
+            gh release upload "$RELEASE_TAG" "$artifact"
           fi
 
       - name: Push to Nextcloud appstore
@@ -96,4 +114,4 @@ jobs:
           appstore_token: ${{ secrets.NC_APPSTORE_TOKEN }}
           download_url: ${{ steps.tarball.outputs.download_url }}
           app_private_key: ${{ secrets.NC_APP_PRIVATE_KEY }}
-          nightly: ${{ github.event.release.prerelease }}
+          nightly: ${{ github.event_name == 'release' && github.event.release.prerelease || false }}

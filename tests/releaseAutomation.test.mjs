@@ -77,6 +77,10 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.doesNotMatch(makefile, /RELEASE_PATHS\s*:=.*(?:src|tests|node_modules)/);
 
   assert.match(workflow, /release:\s*\n\s+types:\s*\[published\]/);
+  assert.match(workflow, /push:\s*\n\s+tags:\s*\n\s+- ['"]v\*['"]/);
+  assert.match(workflow, /RELEASE_TAG:\s*\$\{\{ github\.event_name == 'release' && github\.event\.release\.tag_name \|\| github\.ref_name \}\}/);
+  assert.match(workflow, /gh release create "\$RELEASE_TAG"/);
+  assert.match(workflow, /--verify-tag/);
   assert.match(workflow, /runs-on:\s*ubuntu-24\.04/);
   assert.match(workflow, /actions\/checkout@[0-9a-f]{40} # v7\.0\.0/);
   assert.match(workflow, /actions\/setup-node@[0-9a-f]{40} # v6\.4\.0/);
