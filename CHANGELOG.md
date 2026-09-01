@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-09-01
+
+### Fixed
+
+- Added canonical MIME mappings for Flyfish 2.3.7's new FB2, HWP/HWPX, and WordPerfect extensions so supported-format generation succeeds.
+- Added regression coverage against Flyfish's live supported-extension inventory so future dependency updates fail in unit tests before generated format files become stale.
+
 ## [0.5.3] - 2026-09-01
 
 ### Changed
@@ -96,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.0...v0.5.1

@@ -50,6 +50,13 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "extension": "ppt"
   },
   {
+    "id": "format:pot",
+    "label": "POT",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "pot"
+  },
+  {
     "id": "format:pptx",
     "label": "PPTX",
     "category": "office",
@@ -155,6 +162,20 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "extension": "xlt"
   },
   {
+    "id": "format:xla",
+    "label": "XLA",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "xla"
+  },
+  {
+    "id": "format:xlam",
+    "label": "XLAM",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "xlam"
+  },
+  {
     "id": "format:xltm",
     "label": "XLTM",
     "category": "office",
@@ -190,11 +211,60 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "extension": "fods"
   },
   {
+    "id": "format:pages",
+    "label": "PAGES",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "pages"
+  },
+  {
     "id": "format:numbers",
     "label": "NUMBERS",
     "category": "office",
     "categoryLabel": "Office",
     "extension": "numbers"
+  },
+  {
+    "id": "format:key",
+    "label": "KEY",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "key"
+  },
+  {
+    "id": "format:wpd",
+    "label": "WPD",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "wpd"
+  },
+  {
+    "id": "format:wp",
+    "label": "WP",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "wp"
+  },
+  {
+    "id": "format:wp5",
+    "label": "WP5",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "wp5"
+  },
+  {
+    "id": "format:wp6",
+    "label": "WP6",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "wp6"
+  },
+  {
+    "id": "format:dbf",
+    "label": "DBF",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "dbf"
   },
   {
     "id": "format:pdf",
@@ -209,6 +279,20 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "category": "document",
     "categoryLabel": "Documents",
     "extension": "ofd"
+  },
+  {
+    "id": "format:hwp",
+    "label": "HWP",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "hwp"
+  },
+  {
+    "id": "format:hwpx",
+    "label": "HWPX",
+    "category": "office",
+    "categoryLabel": "Office",
+    "extension": "hwpx"
   },
   {
     "id": "format:typ",
@@ -811,6 +895,13 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "category": "ebook",
     "categoryLabel": "Ebooks",
     "extension": "epub"
+  },
+  {
+    "id": "format:fb2",
+    "label": "FB2",
+    "category": "ebook",
+    "categoryLabel": "Ebooks",
+    "extension": "fb2"
   },
   {
     "id": "format:umd",
@@ -1489,6 +1580,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "css",
   "csv",
   "dae",
+  "dbf",
   "diff",
   "dio",
   "doc",
@@ -1508,6 +1600,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "eps",
   "epub",
   "excalidraw",
+  "fb2",
   "fbx",
   "flac",
   "fods",
@@ -1529,6 +1622,8 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "htm",
   "html",
   "http",
+  "hwp",
+  "hwpx",
   "ico",
   "ifc",
   "iges",
@@ -1546,6 +1641,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "jsonc",
   "jsx",
   "jxl",
+  "key",
   "kml",
   "kmz",
   "kt",
@@ -1580,6 +1676,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "olb",
   "opus",
   "otf",
+  "pages",
   "parquet",
   "patch",
   "pcd",
@@ -1588,6 +1685,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "plantuml",
   "ply",
   "png",
+  "pot",
   "potm",
   "potx",
   "ppsm",
@@ -1648,8 +1746,14 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "webp",
   "woff",
   "woff2",
+  "wp",
+  "wp5",
+  "wp6",
+  "wpd",
   "wrl",
   "xar",
+  "xla",
+  "xlam",
   "xls",
   "xlsb",
   "xlsm",
