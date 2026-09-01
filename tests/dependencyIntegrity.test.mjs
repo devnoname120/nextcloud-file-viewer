@@ -6,7 +6,8 @@ import test from 'node:test';
 
 import { verifyDependencies } from '../scripts/verify-dependencies.mjs';
 
-const VERSION = '2.2.9';
+const CORE_VERSION = '2.3.0';
+const WEB_FULL_VERSION = '2.3.7';
 
 async function writeJson(path, value) {
   await mkdir(join(path, '..'), { recursive: true });
@@ -17,8 +18,8 @@ async function createDependencyFixture(overrides = {}) {
   const rootDir = await mkdtemp(join(tmpdir(), 'fileviewer-dependencies-'));
   const packageJson = {
     dependencies: {
-      '@file-viewer/core': '^2.2.9',
-      '@file-viewer/web-full': '^2.2.9',
+      '@file-viewer/core': `^${CORE_VERSION}`,
+      '@file-viewer/web-full': `^${WEB_FULL_VERSION}`,
     },
   };
   const packageLock = {
@@ -28,13 +29,13 @@ async function createDependencyFixture(overrides = {}) {
         dependencies: { ...packageJson.dependencies },
       },
       'node_modules/@file-viewer/core': {
-        version: VERSION,
-        resolved: `https://registry.npmjs.org/@file-viewer/core/-/core-${VERSION}.tgz`,
+        version: CORE_VERSION,
+        resolved: `https://registry.npmjs.org/@file-viewer/core/-/core-${CORE_VERSION}.tgz`,
         integrity: 'sha512-core',
       },
       'node_modules/@file-viewer/web-full': {
-        version: VERSION,
-        resolved: `https://registry.npmjs.org/@file-viewer/web-full/-/web-full-${VERSION}.tgz`,
+        version: WEB_FULL_VERSION,
+        resolved: `https://registry.npmjs.org/@file-viewer/web-full/-/web-full-${WEB_FULL_VERSION}.tgz`,
         integrity: 'sha512-web-full',
       },
       ...overrides.lockPackages,
@@ -45,19 +46,19 @@ async function createDependencyFixture(overrides = {}) {
   await writeJson(join(rootDir, 'package-lock.json'), packageLock);
   await writeJson(join(rootDir, 'node_modules/@file-viewer/core/package.json'), {
     name: '@file-viewer/core',
-    version: VERSION,
+    version: CORE_VERSION,
   });
   await writeJson(join(rootDir, 'node_modules/@file-viewer/web-full/package.json'), {
     name: '@file-viewer/web-full',
-    version: VERSION,
+    version: WEB_FULL_VERSION,
   });
   await writeJson(
     join(rootDir, 'node_modules/@file-viewer/web-full/dist/flyfish-viewer-manifest.json'),
-    { version: overrides.installedManifestVersion || VERSION },
+    { version: overrides.installedManifestVersion || WEB_FULL_VERSION },
   );
   await writeJson(
     join(rootDir, 'viewer/file-viewer/flyfish-viewer-manifest.json'),
-    { version: overrides.copiedManifestVersion || VERSION },
+    { version: overrides.copiedManifestVersion || WEB_FULL_VERSION },
   );
 
   return rootDir;
@@ -68,7 +69,7 @@ test('dependency verification accepts locked registry packages and matching copi
   try {
     const result = await verifyDependencies({ rootDir, copiedAssets: true });
     assert.equal(result.checkedPackages, 2);
-    assert.equal(result.flyfishVersion, VERSION);
+    assert.equal(result.flyfishVersion, WEB_FULL_VERSION);
   } finally {
     await rm(rootDir, { recursive: true, force: true });
   }
@@ -118,7 +119,7 @@ test('dependency verification rejects a mismatched copied Flyfish manifest', asy
   try {
     await assert.rejects(
       verifyDependencies({ rootDir, copiedAssets: true }),
-      /Copied Flyfish manifest version 9\.9\.9 does not match 2\.2\.9/,
+      /Copied Flyfish manifest version 9\.9\.9 does not match 2\.3\.7/,
     );
   } finally {
     await rm(rootDir, { recursive: true, force: true });

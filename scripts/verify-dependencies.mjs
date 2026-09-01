@@ -62,11 +62,6 @@ export async function verifyDependencies({ rootDir = process.cwd(), copiedAssets
     lockedVersions.set(packageName, lockEntry.version);
   }
 
-  assert(
-    lockedVersions.get('@file-viewer/core') === lockedVersions.get('@file-viewer/web-full'),
-    'The direct Flyfish packages must resolve to the same version.',
-  );
-
   const expectedViewerVersion = lockedVersions.get('@file-viewer/web-full');
   const installedManifest = await readJson(resolve(
     rootDir,

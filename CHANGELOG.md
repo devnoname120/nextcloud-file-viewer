@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-09-01
+
+### Changed
+
+- Updated Flyfish File Viewer from core 2.2.9/web-full 2.2.9 to core 2.3.0/web-full 2.3.7 and aligned dependency verification with Flyfish's independently versioned direct packages.
+- Updated `@nextcloud/vue` from 9.9.0 to 9.10.0 and Vite from 8.2.1 to 8.2.2, with refreshed transitive dependency resolutions.
+- Updated the Nextcloud Playground demo to install version 0.5.3 and use Flyfish 2.3.7 samples.
+
 ## [0.5.2] - 2026-08-25
 
 ### Changed
@@ -88,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.4.0...v0.5.0
