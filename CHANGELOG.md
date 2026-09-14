@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-09-14
+
+### Added
+
+- Added lazy, self-hosted previews for CHM help files, binary/executable inspection, Adobe and design formats, DICOM medical images, and cryptographic signature/evidence containers.
+
+### Changed
+
+- Updated Flyfish File Viewer from core 2.3.0/web-full 2.3.7 to 3.1.1 and refreshed the full transitive dependency lockfile.
+- Kept specialist parser workers inside the existing opaque iframe boundary by preparing their self-hosted worker sources as frame-owned `blob:` workers on demand.
+- Added an RTF compatibility bundle so RTF remains available with Flyfish 3.1.1's split optional capability loading.
+- Pinned patched transitive versions of `adm-zip`, `fflate`, and `uuid` used by the DICOM dependency stack.
+- Updated the Nextcloud Playground demo to install version 0.5.5 and use Flyfish 3.1.1 samples, including representative CHM, binary, design, DICOM, and signature files.
+
 ## [0.5.4] - 2026-09-01
 
 ### Fixed
@@ -103,7 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.1...v0.5.2

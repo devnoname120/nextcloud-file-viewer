@@ -24,7 +24,7 @@
     {
       "step": "installApp",
       "appId": "fileviewer",
-      "url": "https://github-proxy.exelearning.dev/?repo=devnoname120/nextcloud-file-viewer&release=v0.5.4&asset=fileviewer-0.5.4.tar.gz"
+      "url": "https://github-proxy.exelearning.dev/?repo=devnoname120/nextcloud-file-viewer&release=v0.5.5&asset=fileviewer-0.5.5.tar.gz"
     },
     {
       "step": "runOcc",

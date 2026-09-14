@@ -30,6 +30,8 @@ matrix.
 | OFD | `ofd` |
 | Typst | `typ`, `typst` |
 | Archives | `zip`, `zipx`, `7z`, `rar`, `tar`, `gz`, `tgz`, `bz2`, `xz`, `zst`, `cab`, `iso`, `jar`, `apk`, `cbz`, `cbr`, and more |
+| Compiled HTML Help | `chm` |
+| Binary inspection | `bin`, `hex`, `elf`, `exe`, `dll`, `class`, `macho` |
 | Email | `eml`, `msg`, `mbox` |
 | EDA | `olb`, `dra`, `gds`, `oas`, `oasis` |
 | CAD | `dwg`, `dxf`, `dwf`, `dwfx`, `xps` |
@@ -47,7 +49,10 @@ matrix.
 | Source and text | `txt`, `json`, `jsonc`, `json5`, `ipynb`, `js`, `mjs`, `cjs`, `css`, `java`, `py`, `html`, `htm`, `jsx`, `ts`, `tsx`, `xml`, `log`, `vue`, `yaml`, `yml`, `toml`, `ini`, `proto`, `hcl`, `tex`, `gv`, `http`, `sh`, `bash`, `sql`, `go`, `rs`, `rb`, `swift`, `kt`, `react`, `php`, `c`, `cpp`, `cc`, `h`, `hpp`, `cs`, `diff`, `patch`, `bundle`, `bdl` |
 | Audio | `mp3`, `mpeg`, `wav`, `ogg`, `oga`, `opus`, `m4a`, `aac`, `flac`, `weba`, `midi`, `mid` |
 | Video | `mp4`, `webm`, `m3u8` |
-| Fonts, design assets, and data | `ttf`, `otf`, `woff`, `woff2`, `psd`, `ai`, `eps`, `sqlite`, `wasm`, `parquet`, `avro`, `webarchive` |
+| Adobe and design assets | `psd`, `psb`, `pdd`, `psdt`, `ai`, `ait`, `eps`, `ps`, `idml`, `icml`, `idms`, `inx`, `fla`, `xfl`, `xd`, `indd`, `indt`, `ase`, `aco`, `abr`, `csh`, `pat`, `grd`, `asl` |
+| Medical images | `dcm`, `dicom` |
+| Signatures and evidence containers | `p7m`, `p7s`, `p7c`, `p7b`, `pkcs7`, `cms`, `cmsc`, `tsd`, `tst`, `tsq`, `tsr`, `asics`, `scs`, `asice`, `sce`, `ers`, `asc`, `sig`, `pgp`, `gpg`, `jws` |
+| Fonts and data assets | `ttf`, `otf`, `woff`, `woff2`, `sqlite`, `wasm`, `parquet`, `avro`, `webarchive` |
 
 ## File format settings
 
@@ -126,7 +131,8 @@ EPUB boundary closes the old channel, rotates its token, and replaces the iframe
 the browser applies the new origin policy to a fresh document.
 
 Parser workers do not run in the parent Nextcloud page. For PDF, DOCX-family,
-PPTX-family, DWG, STEP/IGES/BREP, and spreadsheet files of at least 1 MiB, the frame fetches the
+PPTX-family, DWG, STEP/IGES/BREP, specialist binary/design/DICOM/signature formats,
+and spreadsheet files of at least 1 MiB, the frame fetches the
 exact configured bundled worker without credentials, creates a frame-owned `blob:`
 URL, and starts the worker from inside the sandbox. Under the default sandbox these
 workers have the opaque `null` origin. Libarchive formats use the same frame-owned
