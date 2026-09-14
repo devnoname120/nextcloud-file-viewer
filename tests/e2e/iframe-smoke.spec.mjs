@@ -174,6 +174,22 @@ test('loads a text file in the strict sandboxed iframe', async ({ page }) => {
   await waitForDeepText(frame, uniqueText);
 });
 
+test('loads the Binary Inspector and its sandbox-local Worker from the self-hosted specialist bundle', async ({ page }) => {
+  const channel = `iframe-binary-${Date.now()}`;
+  const frame = await mountSandboxedFrame(page, server, channel);
+  const workerInfoPromise = waitForNextWorkerInfo(page);
+
+  await loadFileIntoSandbox(page, channel, {
+    filename: 'smoke.bin',
+    mime: 'application/octet-stream',
+    bytes: new Uint8Array([0xde, 0xad, 0xbe, 0xef, 0x46, 0x6c, 0x79, 0x66, 0x69, 0x73, 0x68]),
+  });
+
+  await waitForDeepText(frame, 'Binary inspector');
+  await waitForDeepText(frame, 'Worker parsed');
+  await expectSandboxLocalWorker(page, workerInfoPromise);
+});
+
 test('ignores file loads sent as window messages after the secure channel is connected', async ({ page }) => {
   const channel = `iframe-window-message-${Date.now()}`;
   const uniqueText = `window message must not load ${Date.now()}`;

@@ -6,8 +6,18 @@ import test from 'node:test';
 
 import { verifyDependencies } from '../scripts/verify-dependencies.mjs';
 
-const CORE_VERSION = '2.3.0';
-const WEB_FULL_VERSION = '2.3.7';
+const FLYFISH_VERSION = '3.1.1';
+const FLYFISH_PACKAGES = [
+  '@file-viewer/core',
+  '@file-viewer/web-full',
+  '@file-viewer/capability-rtf',
+  '@file-viewer/renderer-chm',
+  '@file-viewer/renderer-binary',
+  '@file-viewer/renderer-design',
+  '@file-viewer/renderer-dicom',
+  '@file-viewer/renderer-signature',
+];
+const SPECIALIST_RENDERERS = ['binary', 'chm', 'design', 'dicom', 'rtf', 'signature'];
 
 async function writeJson(path, value) {
   await mkdir(join(path, '..'), { recursive: true });
@@ -18,8 +28,7 @@ async function createDependencyFixture(overrides = {}) {
   const rootDir = await mkdtemp(join(tmpdir(), 'fileviewer-dependencies-'));
   const packageJson = {
     dependencies: {
-      '@file-viewer/core': `^${CORE_VERSION}`,
-      '@file-viewer/web-full': `^${WEB_FULL_VERSION}`,
+      ...Object.fromEntries(FLYFISH_PACKAGES.map(packageName => [packageName, `^${FLYFISH_VERSION}`])),
     },
   };
   const packageLock = {
@@ -28,38 +37,41 @@ async function createDependencyFixture(overrides = {}) {
       '': {
         dependencies: { ...packageJson.dependencies },
       },
-      'node_modules/@file-viewer/core': {
-        version: CORE_VERSION,
-        resolved: `https://registry.npmjs.org/@file-viewer/core/-/core-${CORE_VERSION}.tgz`,
-        integrity: 'sha512-core',
-      },
-      'node_modules/@file-viewer/web-full': {
-        version: WEB_FULL_VERSION,
-        resolved: `https://registry.npmjs.org/@file-viewer/web-full/-/web-full-${WEB_FULL_VERSION}.tgz`,
-        integrity: 'sha512-web-full',
-      },
+      ...Object.fromEntries(FLYFISH_PACKAGES.map(packageName => {
+        const basename = packageName.slice('@file-viewer/'.length);
+        return [`node_modules/${packageName}`, {
+          version: FLYFISH_VERSION,
+          resolved: `https://registry.npmjs.org/@file-viewer/${basename}/-/${basename}-${FLYFISH_VERSION}.tgz`,
+          integrity: `sha512-${basename}`,
+        }];
+      })),
       ...overrides.lockPackages,
     },
   };
 
   await writeJson(join(rootDir, 'package.json'), packageJson);
   await writeJson(join(rootDir, 'package-lock.json'), packageLock);
-  await writeJson(join(rootDir, 'node_modules/@file-viewer/core/package.json'), {
-    name: '@file-viewer/core',
-    version: CORE_VERSION,
-  });
-  await writeJson(join(rootDir, 'node_modules/@file-viewer/web-full/package.json'), {
-    name: '@file-viewer/web-full',
-    version: WEB_FULL_VERSION,
-  });
+  for (const packageName of FLYFISH_PACKAGES) {
+    await writeJson(join(rootDir, 'node_modules', packageName, 'package.json'), {
+      name: packageName,
+      version: overrides.installedVersions?.[packageName] || FLYFISH_VERSION,
+    });
+  }
   await writeJson(
     join(rootDir, 'node_modules/@file-viewer/web-full/dist/flyfish-viewer-manifest.json'),
-    { version: overrides.installedManifestVersion || WEB_FULL_VERSION },
+    { version: overrides.installedManifestVersion || FLYFISH_VERSION },
   );
   await writeJson(
     join(rootDir, 'viewer/file-viewer/flyfish-viewer-manifest.json'),
-    { version: overrides.copiedManifestVersion || WEB_FULL_VERSION },
+    { version: overrides.copiedManifestVersion || FLYFISH_VERSION },
   );
+  await mkdir(join(rootDir, 'viewer/file-viewer/specialists'), { recursive: true });
+  for (const renderer of SPECIALIST_RENDERERS) {
+    await writeFile(
+      join(rootDir, 'viewer/file-viewer/specialists', `${renderer}.mjs`),
+      `export default { id: ${JSON.stringify(renderer)} };\n`,
+    );
+  }
 
   return rootDir;
 }
@@ -68,8 +80,8 @@ test('dependency verification accepts locked registry packages and matching copi
   const rootDir = await createDependencyFixture();
   try {
     const result = await verifyDependencies({ rootDir, copiedAssets: true });
-    assert.equal(result.checkedPackages, 2);
-    assert.equal(result.flyfishVersion, WEB_FULL_VERSION);
+    assert.equal(result.checkedPackages, FLYFISH_PACKAGES.length);
+    assert.equal(result.flyfishVersion, FLYFISH_VERSION);
   } finally {
     await rm(rootDir, { recursive: true, force: true });
   }
@@ -119,7 +131,36 @@ test('dependency verification rejects a mismatched copied Flyfish manifest', asy
   try {
     await assert.rejects(
       verifyDependencies({ rootDir, copiedAssets: true }),
-      /Copied Flyfish manifest version 9\.9\.9 does not match 2\.3\.7/,
+      /Copied Flyfish manifest version 9\.9\.9 does not match 3\.1\.1/,
+    );
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('dependency verification rejects a mismatched specialist renderer installation', async () => {
+  const rootDir = await createDependencyFixture({
+    installedVersions: {
+      '@file-viewer/renderer-binary': '9.9.9',
+    },
+  });
+  try {
+    await assert.rejects(
+      verifyDependencies({ rootDir }),
+      /@file-viewer\/renderer-binary installed version 9\.9\.9 does not match locked version 3\.1\.1/,
+    );
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('copied asset verification rejects a missing specialist renderer entry', async () => {
+  const rootDir = await createDependencyFixture();
+  try {
+    await rm(join(rootDir, 'viewer/file-viewer/specialists/binary.mjs'));
+    await assert.rejects(
+      verifyDependencies({ rootDir, copiedAssets: true }),
+      /Copied specialist renderer entry is missing or empty: binary/,
     );
   } finally {
     await rm(rootDir, { recursive: true, force: true });

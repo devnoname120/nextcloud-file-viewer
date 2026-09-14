@@ -519,6 +519,13 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "extension": "cbr"
   },
   {
+    "id": "format:chm",
+    "label": "CHM",
+    "category": "ebook",
+    "categoryLabel": "Ebooks",
+    "extension": "chm"
+  },
+  {
     "id": "format:eml",
     "label": "EML",
     "category": "email",
@@ -1009,6 +1016,167 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "extension": "jxl"
   },
   {
+    "id": "format:dcm",
+    "label": "DCM",
+    "category": "medical-image",
+    "categoryLabel": "Medical images",
+    "extension": "dcm"
+  },
+  {
+    "id": "format:dicom",
+    "label": "DICOM",
+    "category": "medical-image",
+    "categoryLabel": "Medical images",
+    "extension": "dicom"
+  },
+  {
+    "id": "format:p7m",
+    "label": "P7M",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "p7m"
+  },
+  {
+    "id": "format:p7s",
+    "label": "P7S",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "p7s"
+  },
+  {
+    "id": "format:p7c",
+    "label": "P7C",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "p7c"
+  },
+  {
+    "id": "format:p7b",
+    "label": "P7B",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "p7b"
+  },
+  {
+    "id": "format:pkcs7",
+    "label": "PKCS7",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "pkcs7"
+  },
+  {
+    "id": "format:cms",
+    "label": "CMS",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "cms"
+  },
+  {
+    "id": "format:cmsc",
+    "label": "CMSC",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "cmsc"
+  },
+  {
+    "id": "format:tsd",
+    "label": "TSD",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "tsd"
+  },
+  {
+    "id": "format:tst",
+    "label": "TST",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "tst"
+  },
+  {
+    "id": "format:tsq",
+    "label": "TSQ",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "tsq"
+  },
+  {
+    "id": "format:tsr",
+    "label": "TSR",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "tsr"
+  },
+  {
+    "id": "format:asics",
+    "label": "ASICS",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "asics"
+  },
+  {
+    "id": "format:scs",
+    "label": "SCS",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "scs"
+  },
+  {
+    "id": "format:asice",
+    "label": "ASICE",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "asice"
+  },
+  {
+    "id": "format:sce",
+    "label": "SCE",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "sce"
+  },
+  {
+    "id": "format:ers",
+    "label": "ERS",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "ers"
+  },
+  {
+    "id": "format:asc",
+    "label": "ASC",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "asc"
+  },
+  {
+    "id": "format:sig",
+    "label": "SIG",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "sig"
+  },
+  {
+    "id": "format:pgp",
+    "label": "PGP",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "pgp"
+  },
+  {
+    "id": "format:gpg",
+    "label": "GPG",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "gpg"
+  },
+  {
+    "id": "format:jws",
+    "label": "JWS",
+    "category": "cryptographic-container",
+    "categoryLabel": "Signatures and evidence containers",
+    "extension": "jws"
+  },
+  {
     "id": "format:md",
     "label": "Markdown",
     "category": "code",
@@ -1464,6 +1632,153 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "extension": "mid"
   },
   {
+    "id": "format:psb",
+    "label": "PSB",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "psb"
+  },
+  {
+    "id": "format:pdd",
+    "label": "PDD",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "pdd"
+  },
+  {
+    "id": "format:psdt",
+    "label": "PSDT",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "psdt"
+  },
+  {
+    "id": "format:ait",
+    "label": "AIT",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "ait"
+  },
+  {
+    "id": "format:idml",
+    "label": "IDML",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "idml"
+  },
+  {
+    "id": "format:icml",
+    "label": "ICML",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "icml"
+  },
+  {
+    "id": "format:idms",
+    "label": "IDMS",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "idms"
+  },
+  {
+    "id": "format:inx",
+    "label": "INX",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "inx"
+  },
+  {
+    "id": "format:fla",
+    "label": "FLA",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "fla"
+  },
+  {
+    "id": "format:xfl",
+    "label": "XFL",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "xfl"
+  },
+  {
+    "id": "format:xd",
+    "label": "XD",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "xd"
+  },
+  {
+    "id": "format:indd",
+    "label": "INDD",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "indd"
+  },
+  {
+    "id": "format:indt",
+    "label": "INDT",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "indt"
+  },
+  {
+    "id": "format:ps",
+    "label": "PS",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "ps"
+  },
+  {
+    "id": "format:ase",
+    "label": "ASE",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "ase"
+  },
+  {
+    "id": "format:aco",
+    "label": "ACO",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "aco"
+  },
+  {
+    "id": "format:abr",
+    "label": "ABR",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "abr"
+  },
+  {
+    "id": "format:csh",
+    "label": "CSH",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "csh"
+  },
+  {
+    "id": "format:pat",
+    "label": "PAT",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "pat"
+  },
+  {
+    "id": "format:grd",
+    "label": "GRD",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "grd"
+  },
+  {
+    "id": "format:asl",
+    "label": "ASL",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "asl"
+  },
+  {
     "id": "format:ttf",
     "label": "TTF",
     "category": "asset",
@@ -1546,6 +1861,55 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "category": "asset",
     "categoryLabel": "Fonts, design assets, and data",
     "extension": "webarchive"
+  },
+  {
+    "id": "format:bin",
+    "label": "BIN",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "bin"
+  },
+  {
+    "id": "format:hex",
+    "label": "HEX",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "hex"
+  },
+  {
+    "id": "format:elf",
+    "label": "ELF",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "elf"
+  },
+  {
+    "id": "format:exe",
+    "label": "EXE",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "exe"
+  },
+  {
+    "id": "format:dll",
+    "label": "DLL",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "dll"
+  },
+  {
+    "id": "format:class",
+    "label": "CLASS",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "class"
+  },
+  {
+    "id": "format:macho",
+    "label": "MACHO",
+    "category": "asset",
+    "categoryLabel": "Fonts, design assets, and data",
+    "extension": "macho"
   }
 ]);
 
@@ -1555,14 +1919,23 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "3mf",
   "7z",
   "aac",
+  "abr",
+  "aco",
   "ai",
+  "ait",
   "amf",
   "apk",
   "ar",
+  "asc",
+  "ase",
+  "asice",
+  "asics",
+  "asl",
   "avif",
   "avro",
   "bash",
   "bdl",
+  "bin",
   "bmp",
   "brep",
   "bundle",
@@ -1573,16 +1946,24 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "cbr",
   "cbz",
   "cc",
+  "chm",
   "cjs",
+  "class",
+  "cms",
+  "cmsc",
   "cpio",
   "cpp",
   "cs",
+  "csh",
   "css",
   "csv",
   "dae",
   "dbf",
+  "dcm",
+  "dicom",
   "diff",
   "dio",
+  "dll",
   "doc",
   "docm",
   "docx",
@@ -1596,12 +1977,16 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "dwg",
   "dxf",
   "ear",
+  "elf",
   "eml",
   "eps",
   "epub",
+  "ers",
   "excalidraw",
+  "exe",
   "fb2",
   "fbx",
+  "fla",
   "flac",
   "fods",
   "gds",
@@ -1610,7 +1995,9 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "glb",
   "gltf",
   "go",
+  "gpg",
   "gpx",
+  "grd",
   "gv",
   "gz",
   "gzip",
@@ -1618,17 +2005,24 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "hcl",
   "heic",
   "heif",
+  "hex",
   "hpp",
   "htm",
   "html",
   "http",
   "hwp",
   "hwpx",
+  "icml",
   "ico",
+  "idml",
+  "idms",
   "ifc",
   "iges",
   "igs",
+  "indd",
+  "indt",
   "ini",
+  "inx",
   "ipynb",
   "iso",
   "jar",
@@ -1640,6 +2034,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "json5",
   "jsonc",
   "jsx",
+  "jws",
   "jxl",
   "key",
   "kml",
@@ -1651,6 +2046,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "lzma",
   "m3u8",
   "m4a",
+  "macho",
   "markdown",
   "mbox",
   "md",
@@ -1676,12 +2072,20 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "olb",
   "opus",
   "otf",
+  "p7b",
+  "p7c",
+  "p7m",
+  "p7s",
   "pages",
   "parquet",
+  "pat",
   "patch",
   "pcd",
+  "pdd",
   "pdf",
+  "pgp",
   "php",
+  "pkcs7",
   "plantuml",
   "ply",
   "png",
@@ -1694,7 +2098,10 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "pptm",
   "pptx",
   "proto",
+  "ps",
+  "psb",
   "psd",
+  "psdt",
   "puml",
   "py",
   "rar",
@@ -1702,8 +2109,11 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "react",
   "rs",
   "rtf",
+  "sce",
+  "scs",
   "sh",
   "shp",
+  "sig",
   "sql",
   "sqlite",
   "step",
@@ -1720,6 +2130,10 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "tiff",
   "toml",
   "ts",
+  "tsd",
+  "tsq",
+  "tsr",
+  "tst",
   "tsv",
   "tsx",
   "ttf",
@@ -1752,6 +2166,8 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "wpd",
   "wrl",
   "xar",
+  "xd",
+  "xfl",
   "xla",
   "xlam",
   "xls",

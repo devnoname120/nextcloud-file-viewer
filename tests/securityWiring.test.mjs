@@ -113,6 +113,7 @@ test('viewer document has its own worker and parser CSP', async () => {
   assert.match(controller, /linkTo\([\s\S]*?viewer\/frame\.js/);
   assert.match(controller, /addAllowedStyleDomain\('blob:'\)/);
   assert.match(controller, /addAllowedWorkerSrcDomain\('blob:'\)/);
+  assert.equal(controller.includes('$policy->addAllowedWorkerSrcDomain($appOrigin);'), false);
   assert.equal(controller.includes("$policy->addAllowedWorkerSrcDomain('\\'self\\'');"), false);
   assert.equal(controller.includes("$policy->addAllowedScriptDomain('\\'unsafe-eval\\'');"), true);
   assert.match(controller, /allowEvalWasm/);

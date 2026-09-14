@@ -125,6 +125,7 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.deepEqual(parsedPackageJson.allowScripts, {
     '@file-viewer/web': false,
     'core-js': false,
+    'core-js-pure': false,
     'es5-ext': false,
     'esbuild@0.28.1': true,
     'fsevents@2.3.2': true,

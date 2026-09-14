@@ -16,10 +16,11 @@
     "generate:formats": "node scripts/generate-supported-formats.mjs",
     "copy:admin-styles": "node scripts/copy-admin-styles.mjs",
     "copy:viewer-assets": "node scripts/copy-viewer-assets.mjs",
+    "build:specialists": "vite build --config vite.specialist.config.js --mode production",
     "verify:dependencies": "node scripts/verify-dependencies.mjs",
     "verify:copied-assets": "node scripts/verify-dependencies.mjs --copied",
-    "build": "npm run generate:formats && vite --mode production build && npm run copy:admin-styles && npm run copy:viewer-assets && npm run verify:copied-assets",
-    "dev": "npm run generate:formats && vite --mode development build && npm run copy:admin-styles && npm run copy:viewer-assets",
+    "build": "npm run generate:formats && vite --mode production build && npm run copy:admin-styles && npm run copy:viewer-assets && npm run build:specialists && npm run verify:copied-assets",
+    "dev": "npm run generate:formats && vite --mode development build && npm run copy:admin-styles && npm run copy:viewer-assets && vite build --config vite.specialist.config.js --mode development",
     "watch": "npm run generate:formats && vite --mode development build --watch"
   },
   "engines": {
@@ -27,8 +28,14 @@
     "npm": ">=11.16.0"
   },
   "dependencies": {
-    "@file-viewer/core": "^2.3.0",
-    "@file-viewer/web-full": "^2.3.7",
+    "@file-viewer/capability-rtf": "^3.1.1",
+    "@file-viewer/core": "^3.1.1",
+    "@file-viewer/renderer-binary": "^3.1.1",
+    "@file-viewer/renderer-chm": "^3.1.1",
+    "@file-viewer/renderer-design": "^3.1.1",
+    "@file-viewer/renderer-dicom": "^3.1.1",
+    "@file-viewer/renderer-signature": "^3.1.1",
+    "@file-viewer/web-full": "^3.1.1",
     "@nextcloud/initial-state": "^3.0.0",
     "@nextcloud/router": "^3.1.0",
     "@nextcloud/vue": "^9.10.0",
@@ -47,6 +54,7 @@
   "allowScripts": {
     "@file-viewer/web": false,
     "core-js": false,
+    "core-js-pure": false,
     "es5-ext": false,
     "esbuild@0.28.1": true,
     "fsevents@2.3.2": true,
@@ -54,6 +62,9 @@
   },
   "overrides": {
     "@xmldom/xmldom": "^0.9.10",
-    "minimatch": "^10.2.1"
+    "adm-zip": "0.6.1",
+    "fflate": "0.7.5",
+    "minimatch": "^10.2.1",
+    "uuid": "11.1.1"
   }
 }

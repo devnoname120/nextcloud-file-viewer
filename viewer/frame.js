@@ -57,6 +57,47 @@
   var WORKER_PRESENTATION_EXTENSIONS = new Set(['potm', 'potx', 'ppsm', 'ppsx', 'pptm', 'pptx']);
   var SPREADSHEET_EXTENSIONS = new Set(['xlsx', 'xltx', 'xlsm', 'xlsb', 'xls', 'xlt', 'xltm', 'csv', 'tsv', 'ods', 'fods', 'numbers']);
   var SPREADSHEET_WORKER_THRESHOLD = 1024 * 1024;
+  var SPECIALIST_RENDERERS = {
+    chm: new Set(['chm']),
+    binary: new Set(['bin', 'class', 'dll', 'elf', 'exe', 'hex', 'macho']),
+    design: new Set(['abr', 'aco', 'ai', 'ait', 'ase', 'asl', 'csh', 'eps', 'fla', 'grd', 'icml', 'idml', 'idms', 'indd', 'indt', 'inx', 'pat', 'pdd', 'ps', 'psb', 'psd', 'psdt', 'xd', 'xfl']),
+    dicom: new Set(['dcm', 'dicom']),
+    rtf: new Set(['rtf']),
+    signature: new Set(['asc', 'asice', 'asics', 'cms', 'cmsc', 'ers', 'gpg', 'jws', 'p7b', 'p7c', 'p7m', 'p7s', 'pgp', 'pkcs7', 'sce', 'scs', 'sig', 'tsd', 'tsq', 'tsr', 'tst']),
+  };
+  var SPECIALIST_RENDERER_MODULES = {
+    chm: 'specialists/chm.mjs',
+    binary: 'specialists/binary.mjs',
+    design: 'specialists/design.mjs',
+    dicom: 'specialists/dicom.mjs',
+    rtf: 'specialists/rtf.mjs',
+    signature: 'specialists/signature.mjs',
+  };
+  var SPECIALIST_WORKER_PATHS = {
+    chm: [
+      'vendor/chm/chm.worker.js',
+    ],
+    binary: [
+      'specialists/assets/binary.worker.js',
+    ],
+    design: [
+      'vendor/design/photoshop.worker.js',
+      'vendor/design/illustrator-pgf.worker.js',
+      'vendor/design/adobe-container.worker.js',
+      'vendor/design/adobe-resource.worker.js',
+      'vendor/design/postscript.worker.js',
+      'vendor/design/idml.worker.js',
+    ],
+    dicom: [
+      'specialists/assets/decode-worker.js',
+    ],
+    rtf: [],
+    signature: [
+      'specialists/assets/signature.worker.js',
+      'specialists/assets/container.worker.js',
+    ],
+  };
+  var specialistRendererPromises = new Map();
 
   function createProtocolMessage(type, data) {
     return Object.assign({
@@ -177,7 +218,7 @@
     );
   }
 
-  function createViewerOptions(geo) {
+  function createViewerOptions(geo, specialistRenderer, specialistRendererMode) {
     var options = {
       theme: 'system',
       // The iframe is already the isolation boundary. Spreadsheet rendering
@@ -190,6 +231,11 @@
       archive: {
         workerUrl: resolveAssetUrl('vendor/libarchive/worker-bundle.js'),
         wasmUrl: resolveAssetUrl('vendor/libarchive/libarchive.wasm'),
+      },
+      chm: {
+        workerUrl: resolveAssetUrl('vendor/chm/chm.worker.js'),
+        wasmModuleUrl: resolveAssetUrl('vendor/chm/chm_wasm.js'),
+        wasmUrl: resolveAssetUrl('vendor/chm/chm_wasm_bg.wasm'),
       },
       docx: {
         workerUrl: resolveAssetUrl('vendor/docx/docx.worker.js'),
@@ -218,14 +264,24 @@
         workerUrl: resolveAssetUrl('vendor/xlsx/sheet.worker.js'),
       },
       cad: {
-        wasmPath: resolveAssetUrl('wasm/cad/0.8.0/'),
-        workerUrl: resolveAssetUrl('wasm/cad/0.8.0/dwg-worker.js'),
-        dwfWasmUrl: resolveAssetUrl('wasm/cad/0.8.0/dwfv-render.wasm'),
+        wasmPath: resolveAssetUrl('wasm/cad/0.8.2/'),
+        workerUrl: resolveAssetUrl('wasm/cad/0.8.2/dwg-worker.js'),
+        dwfWasmUrl: resolveAssetUrl('wasm/cad/0.8.2/dwfv-render.wasm'),
       },
       model: {
         workerUrl: resolveAssetUrl('wasm/model/occt-worker.js'),
         runtimeUrl: resolveAssetUrl('wasm/model/occt-import-js.js'),
         wasmUrl: resolveAssetUrl('wasm/model/occt-import-js.wasm'),
+      },
+      design: {
+        workerUrl: resolveAssetUrl('vendor/design/photoshop.worker.js'),
+        illustratorWorkerUrl: resolveAssetUrl('vendor/design/illustrator-pgf.worker.js'),
+        containerWorkerUrl: resolveAssetUrl('vendor/design/adobe-container.worker.js'),
+        adobeResourceWorkerUrl: resolveAssetUrl('vendor/design/adobe-resource.worker.js'),
+        postscriptWorkerUrl: resolveAssetUrl('vendor/design/postscript.worker.js'),
+        postscriptWasmUrl: resolveAssetUrl('vendor/design/stet_wasm_bg.wasm'),
+        idmlWorkerUrl: resolveAssetUrl('vendor/design/idml.worker.js'),
+        idmlWasmUrl: resolveAssetUrl('vendor/design/paged_introspect_wasm_bg.wasm'),
       },
     };
 
@@ -233,7 +289,46 @@
       options.geo = geo;
     }
 
+    if (specialistRenderer) {
+      options.rendererMode = specialistRendererMode === 'replace' ? 'replace' : 'extend';
+      options.renderers = [specialistRenderer];
+    }
+
     return options;
+  }
+
+  function resolveSpecialistRendererFamily(extension) {
+    for (var family in SPECIALIST_RENDERERS) {
+      if (SPECIALIST_RENDERERS[family].has(extension)) {
+        return family;
+      }
+    }
+    return '';
+  }
+
+  async function loadSpecialistRenderer(extension) {
+    var family = resolveSpecialistRendererFamily(extension);
+    if (!family) {
+      return null;
+    }
+
+    var existing = specialistRendererPromises.get(family);
+    if (existing) {
+      return existing;
+    }
+
+    var moduleUrl = resolveAssetUrl(SPECIALIST_RENDERER_MODULES[family]);
+    var pending = import(moduleUrl).then(function (module) {
+      if (!module || !module.default) {
+        throw new Error('Specialist renderer module did not export a renderer: ' + family);
+      }
+      return module.default;
+    }).catch(function (reason) {
+      specialistRendererPromises.delete(family);
+      throw reason;
+    });
+    specialistRendererPromises.set(family, pending);
+    return pending;
   }
 
   function resolveFetchUrl(input) {
@@ -378,7 +473,7 @@
       return 'vendor/xlsx/sheet.worker.js';
     }
     if (extension === 'dwg') {
-      return 'wasm/cad/0.8.0/dwg-worker.js';
+      return 'wasm/cad/0.8.2/dwg-worker.js';
     }
     if (MODEL_WORKER_EXTENSIONS.has(extension)) {
       return 'wasm/model/occt-worker.js';
@@ -386,12 +481,11 @@
     return '';
   }
 
-  async function prepareSandboxWorker(extension, size) {
+  async function prepareSandboxWorkerPath(workerPath) {
     if (disposed) {
       throw new Error('The sandboxed viewer document is no longer active.');
     }
 
-    var workerPath = resolveWorkerPath(extension, size);
     if (!workerPath) {
       return;
     }
@@ -443,6 +537,16 @@
     }
   }
 
+  async function prepareSandboxWorker(extension, size) {
+    await prepareSandboxWorkerPath(resolveWorkerPath(extension, size));
+  }
+
+  async function prepareSpecialistWorkers(extension) {
+    var family = resolveSpecialistRendererFamily(extension);
+    var workerPaths = SPECIALIST_WORKER_PATHS[family] || [];
+    await Promise.all(workerPaths.map(prepareSandboxWorkerPath));
+  }
+
   function normalizePreparedWorkerUrl(scriptUrl) {
     var url = new URL(scriptUrl);
     var queryKeys = Array.from(url.searchParams.keys());
@@ -485,7 +589,10 @@
           preparedUrl === resolveAssetUrl('vendor/pdf/pdf.worker.mjs')
           || preparedUrl === resolveAssetUrl('vendor/pptx/pptx.worker.js')
           || preparedUrl === resolveAssetUrl('vendor/xlsx/sheet.worker.js')
-          || preparedUrl === resolveAssetUrl('wasm/cad/0.8.0/dwg-worker.js')
+          || preparedUrl === resolveAssetUrl('wasm/cad/0.8.2/dwg-worker.js')
+          || preparedUrl.startsWith(resolveAssetUrl('specialists/assets/'))
+          || preparedUrl.startsWith(resolveAssetUrl('vendor/chm/'))
+          || preparedUrl.startsWith(resolveAssetUrl('vendor/design/'))
         ) {
           // These self-contained bundles fail during module-worker startup
           // under an opaque sandbox origin, but are designed to run as classic
@@ -540,8 +647,14 @@
     var size = file.size;
     errorEl.dataset.visible = 'false';
     syncFrameMode(extension);
+    var specialistRenderer;
     try {
-      await prepareSandboxWorker(extension, size);
+      var preparation = await Promise.all([
+        prepareSandboxWorker(extension, size),
+        prepareSpecialistWorkers(extension),
+        loadSpecialistRenderer(extension),
+      ]);
+      specialistRenderer = preparation[2];
     } catch (reason) {
       if (currentLoad !== loadSequence) {
         return;
@@ -557,7 +670,11 @@
       filename: filename,
       type: extension,
       size: size,
-      options: createViewerOptions(data.geo),
+      options: createViewerOptions(
+        data.geo,
+        specialistRenderer,
+        extension === 'rtf' ? 'replace' : 'extend'
+      ),
     };
   }
 

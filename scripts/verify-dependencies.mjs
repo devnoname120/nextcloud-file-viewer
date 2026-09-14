@@ -1,11 +1,18 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const FLYFISH_PACKAGES = [
   '@file-viewer/core',
   '@file-viewer/web-full',
+  '@file-viewer/capability-rtf',
+  '@file-viewer/renderer-chm',
+  '@file-viewer/renderer-binary',
+  '@file-viewer/renderer-design',
+  '@file-viewer/renderer-dicom',
+  '@file-viewer/renderer-signature',
 ];
+const SPECIALIST_RENDERERS = ['binary', 'chm', 'design', 'dicom', 'rtf', 'signature'];
 
 function packageLockKey(packageName) {
   return `node_modules/${packageName}`;
@@ -13,6 +20,14 @@ function packageLockKey(packageName) {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
+}
+
+async function isNonEmptyFile(path) {
+  try {
+    return (await stat(path)).size > 0;
+  } catch {
+    return false;
+  }
 }
 
 function assert(condition, message) {
@@ -81,6 +96,13 @@ export async function verifyDependencies({ rootDir = process.cwd(), copiedAssets
       copiedManifest.version === expectedViewerVersion,
       `Copied Flyfish manifest version ${copiedManifest.version} does not match ${expectedViewerVersion}.`,
     );
+
+    for (const renderer of SPECIALIST_RENDERERS) {
+      assert(
+        await isNonEmptyFile(resolve(rootDir, 'viewer/file-viewer/specialists', `${renderer}.mjs`)),
+        `Copied specialist renderer entry is missing or empty: ${renderer}`,
+      );
+    }
   }
 
   return {

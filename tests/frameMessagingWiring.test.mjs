@@ -42,7 +42,8 @@ test('parser workers are prepared and created inside the opaque frame', async ()
 
   assert.doesNotMatch(mainSource, /createFrameWorkerBridge|workerBridge|FRAME_WORKER_/);
   assert.doesNotMatch(protocolSource, /FRAME_WORKER_|ALLOWED_FRAME_WORKER_PATHS|MAX_FRAME_WORKERS/);
-  assert.match(frameSource, /await prepareSandboxWorker\(extension, size\)/);
+  assert.match(frameSource, /prepareSandboxWorker\(extension, size\)/);
+  assert.match(frameSource, /prepareSpecialistWorkers\(extension\)/);
   assert.match(frameSource, /var currentLoad = \+\+loadSequence/);
   assert.match(frameSource, /if \(currentLoad !== loadSequence\)/);
   assert.match(frameSource, /var size = file\.size/);
@@ -54,8 +55,8 @@ test('parser workers are prepared and created inside the opaque frame', async ()
   assert.match(frameSource, /pptModuleUrl:[\s\S]*?pptWorker: false/);
   assert.match(frameSource, /MODEL_WORKER_EXTENSIONS[\s\S]*?wasm\/model\/occt-worker\.js/);
   assert.match(frameSource, /SPREADSHEET_EXTENSIONS[\s\S]*?'tsv'/);
-  assert.match(frameSource, /cad: \{[\s\S]*?wasm\/cad\/0\.8\.0\/dwg-worker\.js/);
-  assert.match(frameSource, /extension === 'dwg'[\s\S]*?wasm\/cad\/0\.8\.0\/dwg-worker\.js/);
+  assert.match(frameSource, /cad: \{[\s\S]*?wasm\/cad\/0\.8\.2\/dwg-worker\.js/);
+  assert.match(frameSource, /extension === 'dwg'[\s\S]*?wasm\/cad\/0\.8\.2\/dwg-worker\.js/);
   assert.match(frameSource, /SANDBOX_WORKER_VERSION_QUERY_KEYS[\s\S]*?'file-viewer-cad'[\s\S]*?'file-viewer-docx'/);
   assert.match(frameSource, /preparedUrl = normalizePreparedWorkerUrl\(requestedUrl\)/);
   assert.match(frameSource, /sandboxWorkerObjectUrls\.get\(preparedUrl\)/);

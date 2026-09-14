@@ -8,7 +8,28 @@ import {
 } from '../src/supportedFormats.generated.js';
 
 test('supported extension list includes representative Flyfish renderer formats', () => {
-  for (const extension of ['pdf', 'docx', 'xlsx', 'tsv', 'ppt', 'pptx', 'zip', 'dwg', 'epub', 'svg', 'mp4', 'mp3', 'md']) {
+  for (const extension of [
+    'pdf',
+    'docx',
+    'xlsx',
+    'tsv',
+    'ppt',
+    'pptx',
+    'zip',
+    'dwg',
+    'epub',
+    'svg',
+    'mp4',
+    'mp3',
+    'md',
+    'chm',
+    'bin',
+    'elf',
+    'psb',
+    'idml',
+    'dcm',
+    'p7m',
+  ]) {
     assert.ok(SUPPORTED_EXTENSIONS.includes(extension), `${extension} should be supported`);
   }
 });
@@ -48,7 +69,22 @@ test('representative aliases have human-readable labels while retaining distinct
 test('generated PHP supported format inventory mirrors the JavaScript definitions', async () => {
 	const phpSource = await readFile('lib/Generated/SupportedFormats.php', 'utf8');
 
-	for (const extension of ['pdf', 'jpg', 'jpeg', 'md', 'markdown', 'epub', 'ppt', 'tsv', 'dwg']) {
+	for (const extension of [
+		'pdf',
+		'jpg',
+		'jpeg',
+		'md',
+		'markdown',
+		'epub',
+		'ppt',
+		'tsv',
+		'dwg',
+		'chm',
+		'bin',
+		'psb',
+		'dcm',
+		'p7m',
+	]) {
 		assert.ok(phpSource.includes(`'id' => 'format:${extension}'`));
 		assert.ok(phpSource.includes(`'extension' => '${extension}'`));
 	}

@@ -45,6 +45,11 @@ test('canonical mappings resolve known extension ambiguities for the viewer form
 	assert.deepEqual(mappings.get('http'), ['text/x-http']);
 	assert.deepEqual(mappings.get('ppt'), ['application/vnd.ms-powerpoint']);
 	assert.deepEqual(mappings.get('tsv'), ['text/tab-separated-values']);
+	assert.deepEqual(mappings.get('chm'), ['application/vnd.ms-htmlhelp']);
+	assert.deepEqual(mappings.get('bin'), ['application/x-binary-file', 'application/octet-stream']);
+	assert.deepEqual(mappings.get('elf'), ['application/x-elf', 'application/octet-stream']);
+	assert.deepEqual(mappings.get('dcm'), ['application/dicom']);
+	assert.deepEqual(mappings.get('p7m'), ['application/pkcs7-mime']);
 });
 
 test('registered and active formats receive safe response MIME alternatives', () => {
@@ -55,13 +60,33 @@ test('registered and active formats receive safe response MIME alternatives', ()
 	assert.deepEqual(mappings.get('mermaid'), ['application/vnd.mermaid', 'text/plain']);
 	assert.deepEqual(mappings.get('html'), ['text/html', 'text/plain']);
 	assert.deepEqual(mappings.get('svg'), ['image/svg+xml', 'text/plain']);
+	assert.deepEqual(mappings.get('exe'), ['application/vnd.microsoft.portable-executable', 'application/octet-stream']);
+	assert.deepEqual(mappings.get('macho'), ['application/x-mach-binary', 'application/octet-stream']);
 });
 
 test('generated PHP MIME inventory mirrors the JavaScript mapping source', async () => {
 	const mappings = createMimeTypeMappings(SUPPORTED_EXTENSIONS);
 	const phpSource = await readFile('lib/Generated/MimeTypeMappings.php', 'utf8');
 
-	for (const extension of ['dotm', 'typ', 'mmd', 'woff2', 'wasm', 'geojson', 'sqlite', 'parquet', 'jxl', 'avif', 'gltf', 'ifc']) {
+	for (const extension of [
+		'dotm',
+		'typ',
+		'mmd',
+		'woff2',
+		'wasm',
+		'geojson',
+		'sqlite',
+		'parquet',
+		'jxl',
+		'avif',
+		'gltf',
+		'ifc',
+		'chm',
+		'bin',
+		'elf',
+		'dcm',
+		'p7m',
+	]) {
 		const mapping = mappings.get(extension);
 		assert.ok(mapping);
 		assert.ok(phpSource.includes(`'${extension}' => [`));
