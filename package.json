@@ -1,7 +1,7 @@
 {
   "name": "nextcloud-file-viewer",
   "description": "Universal File Viewer for Nextcloud, powered by Flyfish File Viewer",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "author": "devnoname120",
   "license": "AGPL-3.0-or-later",
   "private": true,
@@ -28,25 +28,25 @@
     "npm": ">=11.16.0"
   },
   "dependencies": {
-    "@file-viewer/capability-rtf": "^3.1.1",
-    "@file-viewer/core": "^3.1.1",
-    "@file-viewer/renderer-binary": "^3.1.1",
-    "@file-viewer/renderer-chm": "^3.1.1",
-    "@file-viewer/renderer-design": "^3.1.1",
-    "@file-viewer/renderer-dicom": "^3.1.1",
-    "@file-viewer/renderer-signature": "^3.1.1",
-    "@file-viewer/web-full": "^3.1.1",
+    "@file-viewer/capability-rtf": "^3.1.2",
+    "@file-viewer/core": "^3.1.2",
+    "@file-viewer/renderer-binary": "^3.1.2",
+    "@file-viewer/renderer-chm": "^3.1.2",
+    "@file-viewer/renderer-design": "^3.1.2",
+    "@file-viewer/renderer-dicom": "^3.1.2",
+    "@file-viewer/renderer-signature": "^3.1.2",
+    "@file-viewer/web-full": "^3.1.2",
     "@nextcloud/initial-state": "^3.0.0",
-    "@nextcloud/router": "^3.1.0",
-    "@nextcloud/vue": "^9.10.0",
-    "vue": "^3.5.41"
+    "@nextcloud/router": "^3.2.0",
+    "@nextcloud/vue": "^9.13.1",
+    "vue": "^3.5.43"
   },
   "devDependencies": {
     "@nextcloud/browserslist-config": "^3.1.2",
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "^1.63.0",
     "mime-types": "^3.0.2",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.3.2"
   },
   "browserslist": [
     "extends @nextcloud/browserslist-config"
@@ -61,10 +61,12 @@
     "fsevents@2.3.3": true
   },
   "overrides": {
-    "@xmldom/xmldom": "^0.9.10",
+    "@xmldom/xmldom": "^0.9.12",
     "adm-zip": "0.6.1",
+    "dompurify": "^3.4.16",
     "fflate": "0.7.5",
-    "minimatch": "^10.2.1",
+    "katex": "^0.18.10",
+    "minimatch": "^10.2.6",
     "uuid": "11.1.1"
   }
 }

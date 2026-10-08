@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import {
-	DEFAULT_RENDERER_DEFINITIONS,
-	DEFAULT_SUPPORTED_EXTENSIONS,
-} from '@file-viewer/core';
+	VIEWER_RENDERER_DEFINITIONS,
+	VIEWER_SUPPORTED_EXTENSIONS,
+} from './viewer-supported-formats.mjs';
 
 import { createMimeTypeMappings } from './mime-type-mappings.mjs';
 
@@ -81,11 +81,11 @@ const FORMAT_LABELS = Object.freeze({
 	yml: 'YAML',
 });
 
-const supportedExtensionSet = new Set(DEFAULT_SUPPORTED_EXTENSIONS);
+const supportedExtensionSet = new Set(VIEWER_SUPPORTED_EXTENSIONS);
 const seenExtensions = new Set();
 const supportedFormats = [];
 
-for (const definition of DEFAULT_RENDERER_DEFINITIONS) {
+for (const definition of VIEWER_RENDERER_DEFINITIONS) {
 	const sourceCategory = String(definition.category || 'other');
 	const category = CATEGORY_ALIASES[sourceCategory] || sourceCategory;
 	const categoryLabel = CATEGORY_LABELS[category] || humanizeIdentifier(category);
@@ -93,7 +93,7 @@ for (const definition of DEFAULT_RENDERER_DEFINITIONS) {
 	for (const rawExtension of definition.extensions) {
 		const extension = String(rawExtension).trim().toLowerCase();
 		if (!supportedExtensionSet.has(extension)) {
-			throw new Error(`Renderer format ${extension} is missing from DEFAULT_SUPPORTED_EXTENSIONS.`);
+			throw new Error(`Renderer format ${extension} is missing from VIEWER_SUPPORTED_EXTENSIONS.`);
 		}
 		if (seenExtensions.has(extension)) {
 			throw new Error(`Renderer format ${extension} is declared more than once.`);
@@ -110,7 +110,7 @@ for (const definition of DEFAULT_RENDERER_DEFINITIONS) {
 	}
 }
 
-const missingExtensions = DEFAULT_SUPPORTED_EXTENSIONS.filter(extension => !seenExtensions.has(extension));
+const missingExtensions = VIEWER_SUPPORTED_EXTENSIONS.filter(extension => !seenExtensions.has(extension));
 if (missingExtensions.length > 0) {
 	throw new Error(`Flyfish formats are missing renderer definitions: ${missingExtensions.join(', ')}`);
 }

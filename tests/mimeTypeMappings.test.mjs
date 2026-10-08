@@ -2,21 +2,26 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { DEFAULT_SUPPORTED_EXTENSIONS } from '@file-viewer/core';
+import { VIEWER_SUPPORTED_EXTENSIONS } from '../scripts/viewer-supported-formats.mjs';
 
 import { createMimeTypeMappings } from '../scripts/mime-type-mappings.mjs';
 import { SUPPORTED_EXTENSIONS } from '../src/supportedFormats.generated.js';
 
-test('every current Flyfish extension has a canonical MIME mapping before generation', () => {
-	const mappings = createMimeTypeMappings(DEFAULT_SUPPORTED_EXTENSIONS);
+test('every enabled Flyfish extension has a canonical MIME mapping before generation', () => {
+	const mappings = createMimeTypeMappings(VIEWER_SUPPORTED_EXTENSIONS);
 
-	assert.equal(mappings.size, DEFAULT_SUPPORTED_EXTENSIONS.length);
+	assert.equal(mappings.size, VIEWER_SUPPORTED_EXTENSIONS.length);
 	assert.deepEqual(mappings.get('fb2'), ['application/x-fictionbook+xml', 'text/plain']);
 	assert.deepEqual(mappings.get('hwp'), ['application/x-hwp']);
 	assert.deepEqual(mappings.get('hwpx'), ['application/x-hwpx']);
 	assert.deepEqual(mappings.get('wp'), ['application/vnd.wordperfect']);
 	assert.deepEqual(mappings.get('wp5'), ['application/vnd.wordperfect']);
 	assert.deepEqual(mappings.get('wp6'), ['application/vnd.wordperfect']);
+});
+
+test('format inventory excludes unshipped opt-in renderers', () => {
+	assert.equal(VIEWER_SUPPORTED_EXTENSIONS.includes('bpmn'), false);
+	assert.deepEqual([...SUPPORTED_EXTENSIONS].sort(), [...VIEWER_SUPPORTED_EXTENSIONS].sort());
 });
 
 test('every supported extension has one canonical non-generic MIME mapping', () => {

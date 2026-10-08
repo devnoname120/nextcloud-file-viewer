@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-10-08
+
+### Changed
+
+- Updated Flyfish File Viewer and the specialist renderer packages from 3.1.1 to 3.1.2.
+- Updated Nextcloud Router to 3.2.0, Nextcloud Vue to 9.13.1, Vue to 3.5.43, Playwright to 1.63.0, and Vite to 8.3.2, with refreshed compatible transitive dependencies.
+- Enforced patched DOMPurify 3.4.16 and KaTeX 0.18.10 versions throughout the dependency graph.
+- Kept unshipped opt-in renderers out of the generated supported-format inventory.
+- Updated the Nextcloud Playground demo to install version 0.5.6 and use Flyfish 3.1.2 samples.
+
 ### Security
 
 - Require confirmation that custom basemap URLs and keys are public browser configuration, withhold legacy unconfirmed credentials, load geo options only for geospatial files, and remove credential-bearing console output.
@@ -124,7 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.6...HEAD
+[0.5.6]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.2...v0.5.3
