@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Require confirmation that custom basemap URLs and keys are public browser configuration, withhold legacy unconfirmed credentials, load geo options only for geospatial files, and remove credential-bearing console output.
+- Authorize releases using trusted signed annotated tags on protected main, build without publication credentials, and verify the approved artifact digest in a separate publication job.
+- Serialize MIME mapping, ownership, and filecache updates; detect conflicting edits and atomically replace the mapping file while preserving its permissions and ownership.
+- Confine the browser-test asset server to canonical viewer/runtime roots and limit CORS to opaque sandbox origins.
+
 ## [0.5.5] - 2026-09-14
 
 ### Added

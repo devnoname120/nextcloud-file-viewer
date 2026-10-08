@@ -5,6 +5,11 @@ declare(strict_types=1);
 return [
 	'routes' => [
 		[
+			'name' => 'viewer#geoOptions',
+			'url' => '/viewer/geo',
+			'verb' => 'GET',
+		],
+		[
 			'name' => 'viewer#show',
 			'url' => '/viewer/frame',
 			'verb' => 'GET',

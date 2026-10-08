@@ -1,3 +1,5 @@
+import { SUPPORTED_FORMATS } from './supportedFormats.generated.js';
+
 export const DEFAULT_GEO_BASEMAP = 'openfreemap-liberty';
 
 export const GEO_BASEMAP_OPTIONS = Object.freeze([
@@ -16,6 +18,19 @@ export const GEO_BASEMAP_VALUES = Object.freeze(GEO_BASEMAP_OPTIONS.map(option =
 
 const CUSTOM_RASTER = 'custom-raster';
 const CUSTOM_VECTOR_STYLE = 'custom-vector-style';
+const GEO_EXTENSIONS = new Set(SUPPORTED_FORMATS.filter(format => format.category === 'geo').map(format => format.extension));
+
+export async function loadViewerGeoOptions(extension, url, { signal, fetchOptions = fetch } = {}) {
+  if (!GEO_EXTENSIONS.has(extension.toLowerCase())) {
+    return undefined;
+  }
+
+  const response = await fetchOptions(url, { credentials: 'same-origin', signal });
+  if (!response.ok) {
+    throw new Error('Failed to load geospatial basemap settings.');
+  }
+  return response.json();
+}
 
 export function normalizeGeoSettings(settings = {}) {
   const normalized = {
@@ -23,6 +38,7 @@ export function normalizeGeoSettings(settings = {}) {
     tileUrl: normalizeText(settings.tileUrl),
     styleUrl: normalizeText(settings.styleUrl),
     apiKey: normalizeText(settings.apiKey),
+    publicBasemap: settings.publicBasemap === true,
     attribution: normalizeText(settings.attribution),
   };
 
@@ -31,6 +47,10 @@ export function normalizeGeoSettings(settings = {}) {
 
 export function createViewerGeoOptions(settings = {}) {
   const normalized = normalizeGeoSettings(settings);
+
+  if ([CUSTOM_RASTER, CUSTOM_VECTOR_STYLE].includes(normalized.basemap) && !normalized.publicBasemap) {
+    return { basemap: 'offline' };
+  }
 
   if (normalized.basemap === CUSTOM_RASTER) {
     if (!normalized.tileUrl) {

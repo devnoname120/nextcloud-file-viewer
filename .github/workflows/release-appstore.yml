@@ -8,20 +8,44 @@ on:
     types: [published]
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: appstore-${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
 
 jobs:
-  release-appstore:
-    name: Build and publish appstore release
+  build:
+    name: Verify release authorization and build
     runs-on: ubuntu-24.04
-    environment: release
-    env:
-      RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
+    outputs:
+      commit: ${{ steps.authorize.outputs.commit }}
+      tag_object: ${{ steps.authorize.outputs.tag_object }}
+      trusted_commit: ${{ steps.authorize.outputs.trusted_commit }}
+      sha256: ${{ steps.tarball.outputs.sha256 }}
+      asset_name: ${{ steps.tarball.outputs.asset_name }}
     steps:
-      - name: Checkout release tag
+      - name: Checkout protected main for release policy
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Authorize signed release tag
+        id: authorize
+        run: |
+          set -eu
+          sh scripts/verify-release-tag.sh "$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          printf 'trusted_commit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout authorized release commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.authorize.outputs.commit }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -46,29 +70,72 @@ jobs:
             exit 1
           fi
 
-      - name: Build release artifact
+      - name: Build release artifact without publication credentials
         run: |
           make npm-deps
           ./node_modules/.bin/playwright install --with-deps chromium
           make dist
 
-      - name: Resolve tarball metadata
+      - name: Resolve approved tarball digest
         id: tarball
         run: |
           set -eu
-          set -- build/artifacts/fileviewer-*.tar.gz
-          if [ "$1" = "build/artifacts/fileviewer-*.tar.gz" ] || [ "$#" -ne 1 ]; then
-            echo "Expected exactly one built tarball for fileviewer, got $#"
-            exit 1
-          fi
-          artifact="$1"
-          asset_name="$(basename "$artifact")"
-          download_url="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${asset_name}"
+          asset_name="fileviewer-${RELEASE_TAG#v}.tar.gz"
+          artifact="build/artifacts/$asset_name"
+          test -f "$artifact"
+          python3 scripts/compare-release-archives.py "$artifact" "$artifact"
           {
-            echo "path=${artifact}"
-            echo "asset_name=${asset_name}"
-            echo "download_url=${download_url}"
+            echo "asset_name=$asset_name"
+            echo "sha256=$(sha256sum "$artifact" | cut -d ' ' -f 1)"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Preserve verified release artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-release
+          path: build/artifacts/fileviewer-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish verified artifact
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout trusted publication scripts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.build.outputs.trusted_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Recheck release authorization
+        env:
+          APPROVED_COMMIT: ${{ needs.build.outputs.commit }}
+          APPROVED_TAG_OBJECT: ${{ needs.build.outputs.tag_object }}
+        run: |
+          set -eu
+          sh scripts/verify-release-tag.sh "$RELEASE_TAG"
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG")" = "$APPROVED_TAG_OBJECT"
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$APPROVED_COMMIT"
+
+      - name: Download verified artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: verified-release
+          path: build/artifacts
+
+      - name: Verify approved artifact digest
+        env:
+          ASSET_NAME: ${{ needs.build.outputs.asset_name }}
+          APPROVED_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          set -eu
+          artifact="build/artifacts/$ASSET_NAME"
+          printf '%s  %s\n' "$APPROVED_SHA256" "$artifact" | sha256sum --check --strict
 
       - name: Publish GitHub release for pushed tag
         if: github.event_name == 'push'
@@ -86,12 +153,14 @@ jobs:
           fi
 
       - name: Upload or verify tarball on GitHub release
+        id: tarball
         env:
           GH_TOKEN: ${{ github.token }}
+          ASSET_NAME: ${{ needs.build.outputs.asset_name }}
         run: |
           set -eu
-          artifact="${{ steps.tarball.outputs.path }}"
-          asset_name="${{ steps.tarball.outputs.asset_name }}"
+          asset_name="$ASSET_NAME"
+          artifact="build/artifacts/$asset_name"
           existing_dir="$(mktemp -d)"
           trap 'rm -rf "$existing_dir"' EXIT
           python3 scripts/compare-release-archives.py "$artifact" "$artifact"
@@ -102,10 +171,10 @@ jobs:
               echo "Release asset $asset_name already exists with different contents"
               exit 1
             fi
-            echo "Release asset $asset_name already exists with identical contents"
           else
             gh release upload "$RELEASE_TAG" "$artifact"
           fi
+          echo "download_url=https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${asset_name}" >> "$GITHUB_OUTPUT"
 
       - name: Push to Nextcloud appstore
         uses: R0Wi/nextcloud-appstore-push-action@ad2020a77eb694e8fe145d2ebd6bc21c246240fd # v1.0.5

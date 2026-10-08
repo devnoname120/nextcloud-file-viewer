@@ -13,6 +13,7 @@ class GeoSettings {
 	private const KEY_TILE_URL = 'geo_tile_url';
 	private const KEY_STYLE_URL = 'geo_style_url';
 	private const KEY_API_KEY = 'geo_api_key';
+	private const KEY_PUBLIC_BASEMAP = 'geo_public_basemap';
 	private const KEY_ATTRIBUTION = 'geo_attribution';
 
 	private const BASEMAP_OFFLINE = 'offline';
@@ -37,7 +38,7 @@ class GeoSettings {
 	}
 
 	/**
-	 * @return array{basemap: string, tileUrl: string, styleUrl: string, apiKey: string, attribution: string}
+	 * @return array{basemap: string, tileUrl: string, styleUrl: string, apiKey: string, publicBasemap: bool, attribution: string}
 	 */
 	public function getSettings(): array {
 		return $this->normalizeSettings([
@@ -45,17 +46,17 @@ class GeoSettings {
 			'tileUrl' => $this->config->getAppValueString(self::KEY_TILE_URL, ''),
 			'styleUrl' => $this->config->getAppValueString(self::KEY_STYLE_URL, ''),
 			'apiKey' => $this->config->getAppValueString(self::KEY_API_KEY, ''),
+			'publicBasemap' => $this->config->getAppValueString(self::KEY_PUBLIC_BASEMAP, '') === '1',
 			'attribution' => $this->config->getAppValueString(self::KEY_ATTRIBUTION, ''),
 		]);
 	}
 
 	/**
 	 * @param array<string, mixed> $settings
-	 * @return array{basemap: string, tileUrl: string, styleUrl: string, apiKey: string, attribution: string}
+	 * @return array{basemap: string, tileUrl: string, styleUrl: string, apiKey: string, publicBasemap: bool, attribution: string}
 	 */
 	public function saveSettings(array $settings): array {
 		$normalized = $this->normalizeSettings($settings);
-
 		if ($normalized['basemap'] === self::BASEMAP_CUSTOM_RASTER && $normalized['tileUrl'] === '') {
 			throw new \InvalidArgumentException('A tile URL is required for custom raster basemaps.');
 		}
@@ -72,6 +73,7 @@ class GeoSettings {
 		$this->config->setAppValueString(self::KEY_TILE_URL, $normalized['tileUrl']);
 		$this->config->setAppValueString(self::KEY_STYLE_URL, $normalized['styleUrl']);
 		$this->config->setAppValueString(self::KEY_API_KEY, $normalized['apiKey']);
+		$this->config->setAppValueString(self::KEY_PUBLIC_BASEMAP, $normalized['publicBasemap'] ? '1' : '0');
 		$this->config->setAppValueString(self::KEY_ATTRIBUTION, $normalized['attribution']);
 
 		return $normalized;
@@ -82,6 +84,11 @@ class GeoSettings {
 	 */
 	public function getViewerGeoOptions(): array {
 		$settings = $this->getSettings();
+		// Legacy custom configurations are withheld until the administrator
+		// confirms that their URLs and keys are intended for public browser use.
+		if ($this->isCustomBasemap($settings) && !$settings['publicBasemap']) {
+			return ['basemap' => self::BASEMAP_OFFLINE];
+		}
 
 		if ($settings['basemap'] === self::BASEMAP_CUSTOM_RASTER) {
 			if ($settings['tileUrl'] === '') {
@@ -123,6 +130,9 @@ class GeoSettings {
 	public function getAllowedCspOrigins(): array {
 		$settings = $this->getSettings();
 		$origins = [];
+		if ($this->isCustomBasemap($settings) && !$settings['publicBasemap']) {
+			return $origins;
+		}
 
 		if (str_starts_with($settings['basemap'], 'openfreemap-')) {
 			$origins[] = 'https://tiles.openfreemap.org';
@@ -154,12 +164,17 @@ class GeoSettings {
 			'tileUrl' => $this->normalizeString($settings['tileUrl'] ?? ''),
 			'styleUrl' => $this->normalizeString($settings['styleUrl'] ?? ''),
 			'apiKey' => $this->normalizeString($settings['apiKey'] ?? ''),
+			'publicBasemap' => ($settings['publicBasemap'] ?? false) === true,
 			'attribution' => $this->normalizeString($settings['attribution'] ?? ''),
 		];
 	}
 
 	private function normalizeString(mixed $value): string {
 		return is_string($value) ? trim($value) : '';
+	}
+
+	private function isCustomBasemap(array $settings): bool {
+		return in_array($settings['basemap'], [self::BASEMAP_CUSTOM_RASTER, self::BASEMAP_CUSTOM_VECTOR_STYLE], true);
 	}
 
 	private function substituteApiKey(string $url, string $apiKey): string {

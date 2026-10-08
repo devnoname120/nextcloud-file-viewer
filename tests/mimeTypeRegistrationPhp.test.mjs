@@ -28,8 +28,12 @@ namespace {
 
 	final class TestAppConfig implements \OCP\AppFramework\Services\IAppConfig {
 		public array $values = [];
+		public ?\Closure $onRead = null;
 
 		public function getAppValueString(string $key, string $default = ''): string {
+			if ($this->onRead !== null) {
+				($this->onRead)($key);
+			}
 			return $this->values[$key] ?? $default;
 		}
 
@@ -101,6 +105,7 @@ namespace {
 		'wasm' => ['application/admin-wasm'],
 		'admin' => ['application/x-admin'],
 	]);
+	chmod($customPath, 0600);
 
 	$config = new TestAppConfig();
 	$loader = new TestMimeTypeLoader();
@@ -109,6 +114,8 @@ namespace {
 	$firstCustom = readJson($customPath);
 	$firstManaged = json_decode($config->values['managed_mimetype_mappings'], true, 512, JSON_THROW_ON_ERROR);
 	$firstUpdates = $loader->updates;
+	clearstatcache(true, $customPath);
+	$firstPermissions = fileperms($customPath) & 0777;
 
 	$loader->resetUpdates();
 	$second = $service->register();
@@ -145,6 +152,33 @@ namespace {
 		'suppressed_mimetype_extensions',
 	]));
 
+	$raceResults = [];
+	foreach (['register', 'unregister'] as $operation) {
+		$service->register();
+		$loader->resetUpdates();
+		$valuesBeforeRace = $config->values;
+		$administratorMappings = readJson($customPath);
+		$administratorMappings['admin-concurrent'] = ['text/x-administrator-' . $operation];
+		$config->onRead = function (string $key) use ($config, $customPath, $administratorMappings): void {
+			if ($key === 'managed_mimetype_mappings') {
+				$config->onRead = null;
+				writeJson($customPath, $administratorMappings);
+			}
+		};
+		try {
+			$service->$operation();
+			$rejected = false;
+		} catch (\RuntimeException) {
+			$rejected = true;
+		}
+		$raceResults[$operation] = [
+			'rejected' => $rejected,
+			'adminPreserved' => readJson($customPath) === $administratorMappings,
+			'ownershipUnchanged' => $valuesBeforeRace === $config->values,
+			'filecacheUntouched' => $loader->updates === [],
+		];
+	}
+
 	file_put_contents($customPath, '{ invalid json');
 	$invalidBefore = file_get_contents($customPath);
 	try {
@@ -162,6 +196,8 @@ namespace {
 		'firstCustom' => $firstCustom,
 		'firstManaged' => $firstManaged,
 		'firstUpdates' => $firstUpdates,
+		'firstPermissions' => $firstPermissions,
+		'raceResults' => $raceResults,
 		'second' => $second,
 		'ensureRegisteredUpdates' => $ensureRegisteredUpdates,
 		'adminChange' => $afterAdminChange,
@@ -198,6 +234,12 @@ namespace {
 	assert.deepEqual(result.firstManaged.jxl, ['image/jxl']);
 	assert.equal(result.firstUpdates.jxl, 'image/jxl');
 	assert.equal(result.firstUpdates.wasm, undefined);
+	assert.equal(result.firstPermissions, 0o600);
+	for (const outcome of Object.values(result.raceResults)) {
+		assert.deepEqual(outcome, {
+			rejected: true, adminPreserved: true, ownershipUnchanged: true, filecacheUntouched: true,
+		});
+	}
 	assert.ok(result.first.addedMappings > 100);
 
 	assert.equal(result.second.addedMappings, 0);

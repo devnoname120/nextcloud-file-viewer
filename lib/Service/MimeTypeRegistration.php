@@ -9,6 +9,7 @@ use OCP\AppFramework\Services\IAppConfig;
 use OCP\Files\IMimeTypeLoader;
 
 final class MimeTypeRegistration {
+	private ?string $customMappingRevision = null;
 	private const CUSTOM_MAPPING_FILE = 'mimetypemapping.json';
 	private const DEFAULT_MAPPING_FILE = 'resources/config/mimetypemapping.dist.json';
 	private const FALLBACK_MIME = 'application/octet-stream';
@@ -49,12 +50,17 @@ final class MimeTypeRegistration {
 	 * }
 	 */
 	public function register(): array {
+		return $this->withMappingLock(fn (): array => $this->registerLocked());
+	}
+
+	private function registerLocked(): array {
 		$definitions = MimeTypeMappings::all();
 		$coreMappings = $this->readMappingFile($this->getDefaultMappingPath(), true);
+		$customPath = $this->getCustomMappingPath();
+		$customMappings = $this->readMappingFile($customPath, false, true);
+		$customBefore = $customMappings;
 		$managedBefore = $this->getManagedMappings();
 		$suppressedExtensions = $this->getSuppressedExtensions();
-		$customPath = $this->getCustomMappingPath();
-		$customMappings = $this->readMappingFile($customPath, false);
 		$managedAfter = [];
 		$filecacheTargets = [];
 		$addedMappings = 0;
@@ -108,9 +114,10 @@ final class MimeTypeRegistration {
 			$addedMappings++;
 		}
 
-		if ($customMappings !== $this->readMappingFile($customPath, false)) {
+		if ($customMappings !== $customBefore) {
 			$this->writeMappingFile($customPath, $customMappings);
 		}
+		$this->assertCustomMappingUnchanged($customPath);
 
 		ksort($managedAfter, SORT_NATURAL | SORT_FLAG_CASE);
 		$this->storeManagedMappings($managedAfter);
@@ -139,10 +146,15 @@ final class MimeTypeRegistration {
 	 * }
 	 */
 	public function unregister(): array {
+		return $this->withMappingLock(fn (): array => $this->unregisterLocked());
+	}
+
+	private function unregisterLocked(): array {
 		$coreMappings = $this->readMappingFile($this->getDefaultMappingPath(), true);
-		$managedMappings = $this->getManagedMappings();
 		$customPath = $this->getCustomMappingPath();
-		$customMappings = $this->readMappingFile($customPath, false);
+		$customMappings = $this->readMappingFile($customPath, false, true);
+		$customBefore = $customMappings;
+		$managedMappings = $this->getManagedMappings();
 		$filecacheTargets = [];
 		$removedMappings = 0;
 		$preservedMappings = 0;
@@ -164,9 +176,10 @@ final class MimeTypeRegistration {
 				?? self::FALLBACK_MIME;
 		}
 
-		if ($customMappings !== $this->readMappingFile($customPath, false)) {
+		if ($customMappings !== $customBefore) {
 			$this->writeMappingFile($customPath, $customMappings);
 		}
+		$this->assertCustomMappingUnchanged($customPath);
 
 		$this->config->deleteAppValue(self::KEY_MANAGED_MAPPINGS);
 		$this->config->deleteAppValue(self::KEY_REGISTERED_REVISION);
@@ -177,6 +190,23 @@ final class MimeTypeRegistration {
 			'preservedMappings' => $preservedMappings,
 			'updatedFilecacheRows' => $this->updateFilecache($filecacheTargets),
 		];
+	}
+
+	/** Serialize the complete mapping, ownership, and filecache operation. */
+	private function withMappingLock(callable $operation): array {
+		$lock = fopen($this->getCustomMappingPath() . '.lock', 'c');
+		if ($lock === false) {
+			throw new \RuntimeException('Unable to open the MIME mapping lock.');
+		}
+		try {
+			if (!flock($lock, LOCK_EX)) {
+				throw new \RuntimeException('Unable to acquire the MIME mapping lock.');
+			}
+			return $operation();
+		} finally {
+			flock($lock, LOCK_UN);
+			fclose($lock);
+		}
 	}
 
 	/**
@@ -275,10 +305,14 @@ final class MimeTypeRegistration {
 	/**
 	 * @return array<mixed>
 	 */
-	private function readMappingFile(string $path, bool $required): array {
+	private function readMappingFile(string $path, bool $required, bool $trackRevision = false): array {
+		clearstatcache(true, $path);
 		if (!file_exists($path)) {
 			if ($required) {
 				throw new \RuntimeException(sprintf('Required MIME mapping file does not exist: %s', $path));
+			}
+			if ($trackRevision) {
+				$this->customMappingRevision = null;
 			}
 			return [];
 		}
@@ -286,6 +320,9 @@ final class MimeTypeRegistration {
 		$contents = file_get_contents($path);
 		if ($contents === false) {
 			throw new \RuntimeException(sprintf('Unable to read MIME mapping file: %s', $path));
+		}
+		if ($trackRevision) {
+			$this->customMappingRevision = hash('sha256', $contents);
 		}
 
 		try {
@@ -314,8 +351,49 @@ final class MimeTypeRegistration {
 			JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
 		) . PHP_EOL;
 
-		if (file_put_contents($path, $encoded, LOCK_EX) === false) {
-			throw new \RuntimeException(sprintf('Unable to write MIME mapping file: %s', $path));
+		$directory = realpath(dirname($path));
+		$temporaryPath = $directory === false ? false : tempnam($directory, '.fileviewer-mimetypes-');
+		if ($temporaryPath === false || dirname($temporaryPath) !== $directory) {
+			if ($temporaryPath !== false) {
+				unlink($temporaryPath);
+			}
+			throw new \RuntimeException('Unable to create a MIME mapping file in the configuration directory.');
+		}
+		try {
+			if (file_put_contents($temporaryPath, $encoded) !== strlen($encoded)) {
+				throw new \RuntimeException('Unable to write the temporary MIME mapping file.');
+			}
+			$metadata = file_exists($path) ? stat($path) : false;
+			if (!chmod($temporaryPath, $metadata === false ? 0640 : ($metadata['mode'] & 0777))) {
+				throw new \RuntimeException('Unable to preserve MIME mapping permissions.');
+			}
+			if ($metadata !== false) {
+				if (fileowner($temporaryPath) !== $metadata['uid'] && !chown($temporaryPath, $metadata['uid'])) {
+					throw new \RuntimeException('Unable to preserve MIME mapping ownership.');
+				}
+				if (filegroup($temporaryPath) !== $metadata['gid'] && !chgrp($temporaryPath, $metadata['gid'])) {
+					throw new \RuntimeException('Unable to preserve MIME mapping group.');
+				}
+			}
+			// Detect administrators or tools that changed the file without taking
+			// the shared lock. Abort rather than overwrite their newer snapshot.
+			$this->assertCustomMappingUnchanged($path);
+			if (!rename($temporaryPath, $path)) {
+				throw new \RuntimeException('Unable to replace the MIME mapping file.');
+			}
+			$this->customMappingRevision = hash('sha256', $encoded);
+		} finally {
+			if (file_exists($temporaryPath)) {
+				unlink($temporaryPath);
+			}
+		}
+	}
+
+	private function assertCustomMappingUnchanged(string $path): void {
+		clearstatcache(true, $path);
+		$current = file_exists($path) ? hash_file('sha256', $path) : null;
+		if ($current !== $this->customMappingRevision) {
+			throw new \RuntimeException('The MIME mapping file changed during this operation; retry after the administrator update completes.');
 		}
 	}
 

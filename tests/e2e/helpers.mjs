@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 
@@ -57,6 +57,12 @@ const contentTypes = new Map([
 
 export async function startStaticServer(rootDir) {
   const root = path.resolve(rootDir);
+  const viewerRoot = await realpath(path.join(root, 'viewer'));
+  const assetRoot = await realpath(path.join(viewerRoot, 'file-viewer'));
+  const runtimePaths = new Map([
+    ['runtime/frame.js', 'frame.js'],
+    ['runtime/epub-renderer-gate.js', 'epub-renderer-gate.js'],
+  ]);
   const [epubBootstrapTemplate, viewerDocument] = await Promise.all([
     readFile(path.join(root, 'viewer/epub-bootstrap.html'), 'utf8'),
     readFile(path.join(root, 'viewer/index.html'), 'utf8'),
@@ -95,27 +101,42 @@ export async function startStaticServer(rootDir) {
 
       const assetPrefix = '/apps/fileviewer/assets/';
       const isCorsAsset = url.pathname.startsWith(assetPrefix);
-      const assetPath = isCorsAsset
-        ? decodeURIComponent(url.pathname.slice(assetPrefix.length))
-        : '';
-      const runtimePaths = new Map([
-        ['runtime/frame.js', 'viewer/frame.js'],
-        ['runtime/epub-renderer-gate.js', 'viewer/epub-renderer-gate.js'],
-      ]);
-      const relativePath = isCorsAsset
-        ? runtimePaths.get(assetPath) || `viewer/file-viewer/${assetPath}`
-        : decodeURIComponent(url.pathname).replace(/^\/+/, '');
-      let filePath = path.resolve(root, relativePath);
-      if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) {
+      if (!isCorsAsset && !url.pathname.startsWith('/viewer/')) {
+        response.writeHead(404);
+        response.end('Not found');
+        return;
+      }
+      const encodedPath = url.pathname.slice(isCorsAsset ? assetPrefix.length : '/viewer/'.length);
+      let relativePath;
+      try {
+        relativePath = decodeURIComponent(encodedPath);
+      } catch {
+        response.writeHead(400);
+        response.end('Bad request');
+        return;
+      }
+      if (!relativePath || /%2f|%5c/i.test(encodedPath)
+        || /[\\\x00-\x1f\x7f]/.test(relativePath)
+        || path.isAbsolute(relativePath)
+        || relativePath.split('/').some(segment => segment === '..' || segment === '.')) {
         response.writeHead(403);
         response.end('Forbidden');
         return;
       }
 
-      let fileInfo = await stat(filePath);
-      if (fileInfo.isDirectory()) {
-        filePath = path.join(filePath, 'index.html');
-        fileInfo = await stat(filePath);
+      const runtimePath = isCorsAsset ? runtimePaths.get(relativePath) : undefined;
+      const base = isCorsAsset && !runtimePath ? assetRoot : viewerRoot;
+      const filePath = await realpath(path.resolve(base, runtimePath || relativePath));
+      if (!filePath.startsWith(`${base}${path.sep}`)) {
+        response.writeHead(403);
+        response.end('Forbidden');
+        return;
+      }
+      const fileInfo = await stat(filePath);
+      if (!fileInfo.isFile()) {
+        response.writeHead(404);
+        response.end('Not found');
+        return;
       }
 
       const headers = {
@@ -123,7 +144,9 @@ export async function startStaticServer(rootDir) {
         'Content-Type': contentTypes.get(path.extname(filePath)) || 'application/octet-stream',
       };
       if (isCorsAsset) {
-        headers['Access-Control-Allow-Origin'] = '*';
+        // Sandboxed renderers have an opaque origin; other origins do not
+        // need cross-origin access to this ephemeral test server.
+        headers['Access-Control-Allow-Origin'] = 'null';
         headers['Cross-Origin-Resource-Policy'] = 'cross-origin';
       }
       if (url.pathname === '/viewer/index.html') {
@@ -133,8 +156,8 @@ export async function startStaticServer(rootDir) {
       response.writeHead(200, headers);
       createReadStream(filePath).pipe(response);
     } catch (error) {
-      response.writeHead(error?.code === 'ENOENT' ? 404 : 500);
-      response.end(error?.message || 'Error');
+      response.writeHead(['ENOENT', 'ENOTDIR'].includes(error?.code) ? 404 : 500);
+      response.end('Unable to serve test asset');
     }
   });
 

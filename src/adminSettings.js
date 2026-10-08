@@ -13,7 +13,6 @@ import './adminSettings.css';
 import { APP_ID } from './frameProtocol.js';
 import {
 	GEO_BASEMAP_OPTIONS,
-	createViewerGeoOptions,
 	normalizeGeoSettings,
 } from './geoSettings.js';
 import {
@@ -27,7 +26,7 @@ import {
 
 const root = document.getElementById('fileviewer-admin-settings');
 const GEO_SAVE_DEBOUNCE_MS = 500;
-const GEO_SETTINGS_KEYS = ['basemap', 'tileUrl', 'styleUrl', 'apiKey', 'attribution'];
+const GEO_SETTINGS_KEYS = ['basemap', 'tileUrl', 'styleUrl', 'apiKey', 'publicBasemap', 'attribution'];
 
 const AdminSettingsApp = {
 	name: 'FileViewerAdminSettings',
@@ -94,6 +93,7 @@ const AdminSettingsApp = {
 		updateGeoField(key, value) {
 			const nextSettings = normalizeGeoSettings({
 				...this.geoSettings,
+				...(['apiKey', 'tileUrl', 'styleUrl'].includes(key) ? { publicBasemap: false } : {}),
 				[key]: value,
 			});
 			if (this.areGeoSettingsEqual(nextSettings, this.geoSettings)) {
@@ -175,11 +175,10 @@ const AdminSettingsApp = {
 
 					if (version === this.geoSettingsVersion) {
 						this.geoSettings = normalizeGeoSettings(data.settings || payload);
-						this.geoMessage = 'Saved.';
+						this.geoMessage = this.isCustomBasemap && !this.geoSettings.publicBasemap
+							? 'Saved. This basemap is disabled until you confirm that its URL and key may be published.'
+							: 'Saved.';
 					}
-					console.info('[fileviewer] Saved geo settings', {
-						geo: data.geo || createViewerGeoOptions(payload),
-					});
 				} catch (error) {
 					if (version === this.geoSettingsVersion) {
 						this.geoMessage = error?.message || String(error);
@@ -321,10 +320,16 @@ const AdminSettingsApp = {
 			}
 			if (this.isCustomBasemap) {
 				fields.push(
-					this.renderGeoField(h, 'apiKey', 'API key or token', {
-						type: 'password',
+					this.renderGeoField(h, 'apiKey', 'Public browser API key', {
+						type: 'text',
 						placeholder: 'Use {apiKey}, {token}, or {key} in the URL to insert this value.',
 					}),
+					h('p', {}, 'Custom URLs and keys are visible to anyone viewing geospatial files, including public-share visitors. Use only public browser keys restricted by the provider to this instance, map access, and appropriate quotas. Never enter a secret server token.'),
+					h(NcCheckboxRadioSwitch, {
+						id: 'fileviewer-geo-publicBasemap',
+						modelValue: this.geoSettings.publicBasemap,
+						'onUpdate:modelValue': value => this.updateGeoField('publicBasemap', value),
+					}, { default: () => 'I confirm that this URL and key may be published and have the required provider restrictions.' }),
 				);
 			}
 			if (this.isCustomRasterBasemap) {

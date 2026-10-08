@@ -77,6 +77,22 @@ such as JPEG, while distinct formats use an explicit label such as `DOC/DOT`. Sa
 preferences use stable app-specific format identifiers; existing `disabled_mimes`
 preferences are migrated against the current Nextcloud mapping.
 
+MIME lifecycle operations hold `config/mimetypemapping.json.lock` across the
+mapping, ownership, and filecache updates. Administrator automation that edits the
+mapping file must take the same exclusive lock for its complete read/modify/write
+operation. Updates use an atomic replacement that preserves file permissions and
+ownership, and abort when an uncoordinated edit changes the loaded snapshot.
+
+## Geospatial basemap settings
+
+Custom basemap URLs and API keys are public browser configuration, visible to
+geospatial viewers and public-share visitors. Only use provider keys restricted to
+this Nextcloud instance, map access, and appropriate quotas; secret server tokens
+are unsupported. The administrator must explicitly confirm this contract before a
+custom basemap is enabled. Existing custom configurations use an offline basemap
+until that confirmation is saved. Configuration is fetched only when opening a
+geospatial file and is excluded from general Viewer initial state and console logs.
+
 ## Build
 
 ```bash
@@ -97,6 +113,14 @@ manifest matches the locked version. `make dist` additionally fails on known
 production dependency advisories and runs the Chromium sandbox security suite.
 Run `npx playwright install chromium` once before building a release package on
 a new development machine.
+
+Releases require a signed annotated `vMAJOR.MINOR.PATCH` tag from the key in
+`.github/release-signing-key.asc`, pointing to a commit on protected `main`.
+Repository rules must restrict release-tag creation to administrators and prohibit
+tag updates/deletions; source checks cannot enforce GitHub tag permissions.
+The build job has read-only permissions and no publication secrets. A separate
+`release` environment job rechecks the tag and the approved artifact digest before
+publishing. Release tags created without a signature are rejected.
 
 ## Sandbox
 

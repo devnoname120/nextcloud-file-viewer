@@ -27,7 +27,7 @@ import {
   serializeError,
 } from './frameProtocol.js';
 import { normalizeEnabledMimes } from './formatSettings.js';
-import { createViewerGeoOptions } from './geoSettings.js';
+import { loadViewerGeoOptions } from './geoSettings.js';
 import { registerHandler } from './nextcloudViewerRegistration.js';
 import { resolveFileExtension, resolveFileSource, resolveFilename } from './sourceResolution.js';
 import { installViewerHandlerPromotion } from './viewerHandlerOrder.js';
@@ -36,7 +36,7 @@ const viewerFramePath = generateUrl('/apps/{APP_ID}/viewer/frame', { APP_ID });
 const epubBootstrapFramePath = generateUrl('/apps/{APP_ID}/viewer/epub-bootstrap', { APP_ID });
 const viewerAssetBasePath = generateUrl('/apps/{APP_ID}/assets/', { APP_ID });
 const sandbox = loadState(APP_ID, 'sandbox', DEFAULT_SANDBOX);
-const geo = loadState(APP_ID, 'geo', createViewerGeoOptions());
+const geoOptionsPath = generateUrl('/apps/{APP_ID}/viewer/geo', { APP_ID });
 const enabledMimes = normalizeEnabledMimes(loadState(APP_ID, 'enabledMimes', []));
 const publicShareFilename = loadState('files_sharing', 'filename', '');
 
@@ -265,6 +265,9 @@ const FileViewerComponent = {
         }
 
         const blob = await response.blob();
+        const geo = await loadViewerGeoOptions(this.resolvedExtension, geoOptionsPath, {
+          signal: requestController.signal,
+        });
         if (requestController.signal.aborted) {
           return;
         }

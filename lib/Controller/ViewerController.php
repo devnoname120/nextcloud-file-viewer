@@ -10,6 +10,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDisplayResponse;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\EmptyContentSecurityPolicy;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
@@ -54,6 +55,16 @@ class ViewerController extends Controller {
 		$response->addHeader('Content-Type', 'text/html; charset=utf-8');
 		$response->addHeader('Content-Disposition', 'inline; filename="viewer.html"');
 		$response->setContentSecurityPolicy($this->contentSecurityPolicy());
+		return $response;
+	}
+
+	// Only administrator-confirmed public basemap configuration is returned.
+	// Public shares need the same browser basemap as authenticated previews.
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function geoOptions(): DataResponse {
+		$response = new DataResponse($this->geoSettings->getViewerGeoOptions());
+		$response->addHeader('Cache-Control', 'no-store');
 		return $response;
 	}
 

@@ -103,6 +103,18 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
   assert.match(workflow, /gh release download[^\n]*--pattern "\$asset_name"/);
   assert.match(workflow, /python3 scripts\/compare-release-archives\.py "\$artifact" "\$existing_dir\/\$asset_name"/);
   assert.match(workflow, /already exists with different contents/);
+  const [buildJob, publishJob] = workflow.split(/^  publish:/m);
+  assert.match(buildJob, /permissions:\s*\n\s+contents: read/);
+  assert.doesNotMatch(buildJob, /secrets\.|environment: release|contents: write/);
+  assert.match(buildJob, /ref: main/);
+  assert.match(buildJob, /sh scripts\/verify-release-tag\.sh/);
+  assert.match(buildJob, /upload-artifact@[a-f0-9]{40}/);
+  assert.match(publishJob, /needs: build/);
+  assert.match(publishJob, /environment: release/);
+  assert.match(publishJob, /download-artifact@[a-f0-9]{40}/);
+  assert.match(publishJob, /sha256sum --check --strict/);
+  assert.match(publishJob, /APPROVED_TAG_OBJECT/);
+  assert.doesNotMatch(publishJob, /make dist|make npm-deps|npm ci/);
 
   assert.match(packageJson, /"node":\s*">=24"/);
   assert.match(packageJson, /"npm":\s*">=11\.16\.0"/);
