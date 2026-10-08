@@ -64,3 +64,21 @@ test('parser workers are prepared and created inside the opaque frame', async ()
   assert.match(frameSource, /activeSandboxWorkers\.delete\(worker\)/);
   assert.match(frameSource, /NativeRevokeObjectURL\(objectUrl\)/);
 });
+
+test('the unexpected-navigation guard ignores the frame load the viewer requested itself', async () => {
+  const mainSource = await readFile('src/main.js', 'utf8');
+
+  // A frame's own load event can be dispatched before or after the
+  // `document-loaded` message reaches the component, so the guard must not
+  // depend on that ordering: only a load after the first one may disconnect
+  // the viewer.
+  assert.match(mainSource, /frameLoadCount: 0,/);
+  assert.match(mainSource, /this\.frameLoadCount \+= 1;/);
+  assert.match(mainSource, /if \(this\.frameLoadCount <= 1 \|\| !this\.frameNavigationArmed\) \{/);
+
+  const resets = mainSource.match(/this\.frameLoadCount = 0;\s+this\.frameNavigationArmed = false;/g) || [];
+  assert.ok(
+    resets.length >= 3,
+    `expected every guard reset path to clear the load counter, found ${resets.length}`,
+  );
+});
