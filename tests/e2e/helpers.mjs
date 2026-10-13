@@ -59,6 +59,10 @@ export async function startStaticServer(rootDir) {
   const root = path.resolve(rootDir);
   const viewerRoot = await realpath(path.join(root, 'viewer'));
   const assetRoot = await realpath(path.join(viewerRoot, 'file-viewer'));
+  const jsRoot = await realpath(path.join(root, 'js')).catch(error => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
   const runtimePaths = new Map([
     ['runtime/frame.js', 'frame.js'],
     ['runtime/epub-renderer-gate.js', 'epub-renderer-gate.js'],
@@ -80,7 +84,22 @@ export async function startStaticServer(rootDir) {
         return;
       }
 
-      if (url.pathname === '/viewer/epub-bootstrap') {
+      if (url.pathname === '/apps/fileviewer/viewer/frame') {
+        const origin = `http://${request.headers.host}`;
+        const body = viewerDocument
+          .replace('src="./file-viewer/flyfish-file-viewer-web-full.iife.js"',
+            'src="/apps/fileviewer/assets/flyfish-file-viewer-web-full.iife.js"')
+          .replace('src="./frame.js"', 'src="/apps/fileviewer/assets/runtime/frame.js"');
+        response.writeHead(200, {
+          'Content-Length': Buffer.byteLength(body),
+          'Content-Security-Policy': createViewerDocumentCsp(origin),
+          'Content-Type': 'text/html; charset=utf-8',
+        });
+        response.end(body);
+        return;
+      }
+
+      if (url.pathname === '/viewer/epub-bootstrap' || url.pathname === '/apps/fileviewer/viewer/epub-bootstrap') {
         const origin = `http://${request.headers.host}`;
         const body = epubBootstrapTemplate.replace(
           '__FILE_VIEWER_RENDERER_DOCUMENT__',
@@ -101,12 +120,14 @@ export async function startStaticServer(rootDir) {
 
       const assetPrefix = '/apps/fileviewer/assets/';
       const isCorsAsset = url.pathname.startsWith(assetPrefix);
-      if (!isCorsAsset && !url.pathname.startsWith('/viewer/')) {
+      const isCompiledScript = url.pathname.startsWith('/js/') && jsRoot !== null;
+      if (!isCorsAsset && !isCompiledScript && !url.pathname.startsWith('/viewer/')) {
         response.writeHead(404);
         response.end('Not found');
         return;
       }
-      const encodedPath = url.pathname.slice(isCorsAsset ? assetPrefix.length : '/viewer/'.length);
+      const prefix = isCorsAsset ? assetPrefix : isCompiledScript ? '/js/' : '/viewer/';
+      const encodedPath = url.pathname.slice(prefix.length);
       let relativePath;
       try {
         relativePath = decodeURIComponent(encodedPath);
@@ -125,7 +146,7 @@ export async function startStaticServer(rootDir) {
       }
 
       const runtimePath = isCorsAsset ? runtimePaths.get(relativePath) : undefined;
-      const base = isCorsAsset && !runtimePath ? assetRoot : viewerRoot;
+      const base = isCompiledScript ? jsRoot : isCorsAsset && !runtimePath ? assetRoot : viewerRoot;
       const filePath = await realpath(path.resolve(base, runtimePath || relativePath));
       if (!filePath.startsWith(`${base}${path.sep}`)) {
         response.writeHead(403);
@@ -178,6 +199,50 @@ export async function installMessageRecorder(page) {
       window.__fileViewerMessages.push(event.data);
     });
   });
+}
+
+// Mount the registered production component with real iframe load events and
+// MessagePorts. Only Nextcloud's handler host and initial-state globals are stubbed.
+export async function mountViewerComponent(page, server, sample) {
+  await page.goto(`${server.origin}/__playwright-parent.html`);
+  await page.evaluate(() => {
+    window._oc_webroot = '';
+    window.OC = { config: { modRewriteWorking: true } };
+    window._nc_initial_state = new Map([
+      ['#initial-state-fileviewer-enabledMimes', ['text/plain', 'application/zip', 'application/epub+zip']],
+    ]);
+  });
+  await page.addScriptTag({ url: `${server.origin}/js/fileviewer-main.mjs`, type: 'module' });
+  await page.evaluate(data => {
+    const definition = window._oca_viewer_handlers.get('fileviewer').component;
+    const content = data.bytes ? new Uint8Array(data.bytes) : data.text || '';
+    const blob = new Blob([content], { type: data.mime });
+    const props = {
+      path: '', davPath: '', basename: '',
+      source: URL.createObjectURL(blob), filename: data.filename, mime: data.mime, size: blob.size,
+    };
+    const iframe = document.createElement('iframe');
+    iframe.id = 'viewer-frame';
+    iframe.style.cssText = 'width:100%;height:95vh;border:0';
+    const instance = Object.assign(definition.data(), props, {
+      $props: props, $refs: { frame: iframe }, $emit() {},
+    });
+    for (const [name, method] of Object.entries(definition.methods)) instance[name] = method.bind(instance);
+    for (const [name, getter] of Object.entries(definition.computed)) {
+      Object.defineProperty(instance, name, { get: getter.bind(instance) });
+    }
+    definition.created.call(instance);
+    window.__viewerComponent = instance;
+    iframe.setAttribute('sandbox', instance.frameSandboxMode);
+    iframe.setAttribute('credentialless', '');
+    iframe.addEventListener('load', instance.onFrameLoad);
+    iframe.src = instance.frameUrl;
+    document.body.append(iframe);
+  }, { ...sample, bytes: sample.bytes ? Array.from(sample.bytes) : undefined });
+  await page.waitForFunction(() => window.__viewerComponent.frameIsReady || window.__viewerComponent.error);
+  const error = await page.evaluate(() => window.__viewerComponent.error);
+  if (error) throw new Error(`Production Viewer startup failed: ${error.message}`);
+  return page.frames().find(frame => frame.parentFrame() === page.mainFrame());
 }
 
 export async function waitForViewerMessage(page, channel, type, timeout = 30000) {

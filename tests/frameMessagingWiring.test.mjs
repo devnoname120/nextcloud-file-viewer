@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import vm from 'node:vm';
+import { DEFAULT_RENDERER_DEFINITIONS } from '@file-viewer/core';
 
 test('frame communication requires a transferred MessagePort instead of iframe load readiness', async () => {
   const [mainSource, frameSource] = await Promise.all([
@@ -17,7 +19,7 @@ test('frame communication requires a transferred MessagePort instead of iframe l
   assert.match(mainSource, /this\.destroyFrameConnection\(\);\s+this\.channel = createChannel\(\);[\s\S]*?this\.frameSandboxMode = nextSandbox/);
   assert.match(mainSource, /key: this\.channel/);
   assert.match(mainSource, /sandbox: this\.frameSandboxMode/);
-  assert.match(mainSource, /onFrameLoad\(\)/);
+  assert.match(mainSource, /onFrameLoad\(event\)/);
   assert.match(mainSource, /EPUB_BOOTSTRAP_NAVIGATE_MESSAGE/);
   assert.match(mainSource, /event\.data\.type === FRAME_DOCUMENT_LOADED_MESSAGE/);
   assert.match(mainSource, /!this\.frameRuntimeReady[\s\S]*?!this\.frameDocumentLoaded/);
@@ -81,4 +83,13 @@ test('the unexpected-navigation guard ignores the frame load the viewer requeste
     resets.length >= 3,
     `expected every guard reset path to clear the load counter, found ${resets.length}`,
   );
+});
+
+test('archive worker preparation covers every shipped archive extension', async () => {
+  const frameSource = await readFile('viewer/frame.js', 'utf8');
+  const match = frameSource.match(/var ARCHIVE_EXTENSIONS = new Set\((\[[\s\S]*?\])\);/);
+  assert.ok(match);
+  const extensions = vm.runInNewContext(match[1]);
+  const archive = DEFAULT_RENDERER_DEFINITIONS.find(definition => definition.id === 'archive');
+  assert.deepEqual(Array.from(extensions).sort(), [...archive.extensions].sort());
 });

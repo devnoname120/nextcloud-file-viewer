@@ -1,7 +1,7 @@
 {
   "name": "nextcloud-file-viewer",
   "description": "Universal File Viewer for Nextcloud, powered by Flyfish File Viewer",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "author": "devnoname120",
   "license": "AGPL-3.0-or-later",
   "private": true,
@@ -9,7 +9,7 @@
   "scripts": {
     "test": "node --test",
     "audit:production": "npm audit --omit=dev --audit-level=low",
-    "test:browser:iframe": "playwright test tests/e2e/iframe-smoke.spec.mjs --browser=chromium",
+    "test:browser:iframe": "playwright test tests/e2e/iframe-smoke.spec.mjs tests/e2e/viewer-regressions.spec.mjs --browser=chromium",
     "test:browser:examples": "playwright test tests/e2e/upstream-examples.spec.mjs --browser=chromium",
     "test:e2e:nextcloud": "playwright test tests/e2e/nextcloud-smoke.spec.mjs --browser=chromium",
     "test:e2e:nextcloud:samples": "playwright test tests/e2e/nextcloud-samples.spec.mjs --browser=chromium",

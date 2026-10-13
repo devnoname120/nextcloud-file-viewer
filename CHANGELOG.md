@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-10-13
+
+### Fixed
+
+- Fixed intermittent startup failures by distinguishing the initial iframe load from subsequent navigation, including the EPUB bootstrap's two document loads.
+- Wait for the authenticated document handshake and matching iframe load before transferring file bytes, and ignore stale load events from replaced frames.
+- Prepare the fixed parser-worker inventory before opening archives so nested document, presentation, CAD, model, and spreadsheet previews can start sandbox-local workers.
+- Added deterministic event-order tests and browser regressions exercising the shipped parent component, EPUB startup, nested PowerPoint rendering, and opaque CAD/OCCT workers.
+
 ## [0.5.6] - 2026-10-08
 
 ### Changed
@@ -134,7 +143,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial App Store release with Flyfish-powered previews and grouped MIME settings.
 
-[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.6...HEAD
+[Unreleased]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.7...HEAD
+[0.5.7]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/devnoname120/nextcloud-file-viewer/compare/v0.5.3...v0.5.4

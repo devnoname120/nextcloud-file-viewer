@@ -23,12 +23,15 @@ test('test asset server confines assets and runtime aliases to fixed canonical r
   let server;
   try {
     await mkdir(join(root, 'viewer/file-viewer/nested'), { recursive: true });
+    await mkdir(join(root, 'js'));
+    await writeFile(join(root, 'js/public.mjs'), 'compiled fixture');
     for (const name of ['index.html', 'epub-bootstrap.html', 'frame.js', 'epub-renderer-gate.js']) {
       await writeFile(join(root, 'viewer', name), `fixture ${name}`);
     }
     await writeFile(join(root, 'viewer/file-viewer/nested/runtime.js'), 'bundled fixture');
     await writeFile(join(root, 'private-config.txt'), 'private fixture');
     await symlink(join(root, 'private-config.txt'), join(root, 'viewer/file-viewer/outside.txt'));
+    await symlink(join(root, 'private-config.txt'), join(root, 'js/outside.mjs'));
     server = await startStaticServer(root);
     const allowed = await requestPath(server.origin, '/apps/fileviewer/assets/nested/runtime.js');
     assert.equal(allowed.code, 200);
@@ -36,6 +39,7 @@ test('test asset server confines assets and runtime aliases to fixed canonical r
     assert.equal(allowed.headers['access-control-allow-origin'], 'null');
     assert.equal((await requestPath(server.origin, '/apps/fileviewer/assets/runtime/frame.js')).code, 200);
     assert.equal((await requestPath(server.origin, '/viewer/index.html')).code, 200);
+    assert.equal((await requestPath(server.origin, '/js/public.mjs')).code, 200);
 
     const denied = [
       '/private-config.txt',
@@ -46,6 +50,8 @@ test('test asset server confines assets and runtime aliases to fixed canonical r
       '/apps/fileviewer/assets/%zz',
       '/apps/fileviewer/assets/outside.txt',
       '/viewer/%2e%2e/private-config.txt',
+      '/js/outside.mjs',
+      '/js/%2e%2e/private-config.txt',
     ];
     for (const pathname of denied) {
       const result = await requestPath(server.origin, pathname);

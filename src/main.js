@@ -79,6 +79,7 @@ const FileViewerComponent = {
       connectedFrameSandbox: null,
       error: null,
       frameBlocked: false,
+      frameBootstrapReady: false,
       frameHandshakePhase: null,
       frameDocumentLoaded: false,
       frameIsReady: false,
@@ -180,6 +181,7 @@ const FileViewerComponent = {
         this.framePort = null;
       }
       this.frameIsReady = false;
+      this.frameBootstrapReady = false;
       this.frameDocumentLoaded = false;
       this.frameLoadCount = 0;
       this.frameNavigationArmed = false;
@@ -208,6 +210,7 @@ const FileViewerComponent = {
       this.channel = createChannel();
       this.frameBlocked = false;
       this.frameKindMode = nextKind;
+      this.frameBootstrapReady = false;
       this.frameDocumentLoaded = false;
       this.frameLoadCount = 0;
       this.frameNavigationArmed = false;
@@ -224,6 +227,7 @@ const FileViewerComponent = {
         this.destroyFrameConnection();
         this.channel = createChannel();
         this.frameBlocked = false;
+        this.frameBootstrapReady = false;
         this.frameDocumentLoaded = false;
         this.frameLoadCount = 0;
         this.frameNavigationArmed = false;
@@ -300,6 +304,12 @@ const FileViewerComponent = {
       this.$emit('update:loaded', true);
     },
     markFrameReady() {
+      const expectedLoads = this.frameKindMode === EPUB_FRAME_KIND ? 2 : 1;
+      if (!this.frameDocumentLoaded || this.frameLoadCount < expectedLoads) {
+        return;
+      }
+
+      this.frameNavigationArmed = true;
       const wasReady = this.frameIsReady;
       this.frameIsReady = true;
       if (!wasReady) {
@@ -400,6 +410,19 @@ const FileViewerComponent = {
         return;
       }
 
+      this.frameBootstrapReady = true;
+      this.navigateEpubBootstrapIfReady(frame);
+    },
+    navigateEpubBootstrapIfReady(frame = this.$refs.frame) {
+      if (
+        this.frameKindMode !== EPUB_FRAME_KIND
+        || this.frameHandshakePhase !== 'epub-bootstrap'
+        || !this.frameBootstrapReady
+        || this.frameLoadCount < 1
+      ) {
+        return;
+      }
+
       this.frameSandboxMode = this.rendererSandbox;
       frame.setAttribute('sandbox', this.frameSandboxMode);
       if (frame.getAttribute('sandbox') !== this.frameSandboxMode) {
@@ -467,7 +490,10 @@ const FileViewerComponent = {
         channel: this.channel,
       });
     },
-    onFrameLoad() {
+    onFrameLoad(event) {
+      if (event && event.target !== this.$refs.frame) {
+        return;
+      }
       // The frame's own document load can be dispatched either before or after
       // the `nextcloud-file-viewer:document-loaded` message reaches this
       // component, so the handshake alone cannot tell it apart from a later
@@ -475,6 +501,12 @@ const FileViewerComponent = {
       // document requested here, and only what follows can be a navigation.
       this.frameLoadCount += 1;
       if (this.frameLoadCount <= 1 || !this.frameNavigationArmed) {
+        if (this.frameKindMode === EPUB_FRAME_KIND) {
+          this.navigateEpubBootstrapIfReady();
+          this.completeEpubFrameConnectionIfReady();
+        } else {
+          this.markFrameReady();
+        }
         return;
       }
 
@@ -521,7 +553,7 @@ const FileViewerComponent = {
         if (this.frameKindMode === EPUB_FRAME_KIND) {
           this.completeEpubFrameConnectionIfReady();
         } else {
-          this.frameNavigationArmed = true;
+          this.markFrameReady();
         }
         return;
       }
@@ -556,6 +588,7 @@ const FileViewerComponent = {
         || this.frameHandshakePhase !== 'epub-renderer'
         || !this.frameRuntimeReady
         || !this.frameDocumentLoaded
+        || this.frameLoadCount < 2
       ) {
         return;
       }

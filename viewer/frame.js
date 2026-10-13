@@ -51,6 +51,11 @@
   var CONNECTED_MESSAGE = 'nextcloud-file-viewer:connected';
   var CLOSE_REQUEST_MESSAGE = 'nextcloud-file-viewer:close-request';
   var DOCX_EXTENSIONS = new Set(['docx', 'docm', 'dotx', 'dotm']);
+  var ARCHIVE_EXTENSIONS = new Set([
+    'zip', 'zipx', '7z', 'rar', 'tar', 'gz', 'gzip', 'tgz', 'bz2', 'bzip2',
+    'tbz', 'tbz2', 'xz', 'txz', 'lzma', 'zst', 'tzst', 'cab', 'ar', 'cpio',
+    'iso', 'xar', 'lha', 'lzh', 'jar', 'war', 'ear', 'apk', 'cbz', 'cbr',
+  ]);
   var MODEL_WORKER_EXTENSIONS = new Set(['brep', 'iges', 'igs', 'step', 'stp']);
   var SANDBOX_WORKER_VERSION_QUERY_KEYS = new Set(['file-viewer-cad', 'file-viewer-docx']);
   var PRESENTATION_EXTENSIONS = new Set(['odp', 'otp', 'pot', 'potm', 'potx', 'pps', 'ppsm', 'ppsx', 'ppt', 'pptm', 'pptx']);
@@ -538,6 +543,15 @@
   }
 
   async function prepareSandboxWorker(extension, size) {
+    if (ARCHIVE_EXTENSIONS.has(extension)) {
+      // Archive members open inside Flyfish without another parent load
+      // message. Prepare the fixed parser-worker inventory before an entry
+      // can be selected; the synchronous Worker constructor cannot await it.
+      await Promise.all(['docx', 'pdf', 'pptx', 'xlsx', 'dwg', 'step'].map(function (nestedExtension) {
+        return prepareSandboxWorkerPath(resolveWorkerPath(nestedExtension, SPREADSHEET_WORKER_THRESHOLD));
+      }));
+      return;
+    }
     await prepareSandboxWorkerPath(resolveWorkerPath(extension, size));
   }
 
@@ -766,8 +780,8 @@
   }
 
   function announceDocumentLoaded() {
-    // Delay one task so the embedding iframe's matching load event has already
-    // reached the parent before it arms its unexpected-navigation monitor.
+    // The parent independently waits for its matching iframe load event;
+    // correctness must not depend on this task's scheduling order.
     window.setTimeout(function () {
       post('nextcloud-file-viewer:document-loaded');
     }, 0);
