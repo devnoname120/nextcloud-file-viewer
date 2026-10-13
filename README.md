@@ -12,6 +12,19 @@ The renderer cannot read the parent Nextcloud document, while EPUB chapter conte
 stays in a nested iframe that allows its own origin but deliberately does not allow
 scripts.
 
+## Compatibility
+
+The app supports Nextcloud **33, 34, and 35** with PHP **8.2 through 8.5**.
+Nextcloud 35 itself requires PHP **8.3 or later**, so its effective supported PHP
+range is 8.3 through 8.5. Nextcloud 36 is not included in the supported range.
+
+The integration has been checked against the
+[Nextcloud 35 release notes](https://docs.nextcloud.com/server/stable/developer_manual/release_notes/index.html).
+It uses the typed app-config API available since Nextcloud 29 and the complete MIME
+mapping API available since Nextcloud 32; it does not require a Nextcloud 35-only
+API. When adopting an API introduced after the declared minimum, raise the
+Nextcloud minimum in `appinfo/info.xml` in the same change.
+
 ## Supported Formats
 
 Universal File Viewer uses [Flyfish Viewer](https://github.com/flyfish-dev/file-viewer) and thus supports 200+ formats:

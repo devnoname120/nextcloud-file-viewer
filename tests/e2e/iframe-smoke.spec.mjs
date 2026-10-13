@@ -302,25 +302,32 @@ test('loads a PDF file in the strict sandboxed iframe', async ({ page }) => {
   await expectSandboxLocalWorker(page, workerInfoPromise);
 });
 
-test('parses a large XLSX in an opaque sandbox-local worker', async ({ page }) => {
-  const channel = `iframe-large-xlsx-${Date.now()}`;
-  const uniqueText = `large XLSX worker ${Date.now()}`;
-  const frame = await mountSandboxedFrame(page, server, channel);
-  const workerInfoPromise = waitForNextWorkerInfo(page);
-  const bytes = createMinimalXlsxBuffer(uniqueText, 1050000);
-  expect(bytes.length).toBeGreaterThanOrEqual(1024 * 1024);
+for (const extension of ['xlsx', 'xlam']) {
+  test(`parses a large ${extension.toUpperCase()} in an opaque sandbox-local worker`, async ({ page }) => {
+    const channel = `iframe-large-${extension}-${Date.now()}`;
+    const uniqueText = `large ${extension} worker ${Date.now()}`;
+    const frame = await mountSandboxedFrame(page, server, channel);
+    const workerInfoPromise = waitForNextWorkerInfo(page);
+    const isAddin = extension === 'xlam';
+    const bytes = createMinimalXlsxBuffer(uniqueText, 1050000, isAddin
+      ? 'application/vnd.ms-excel.addin.macroEnabled.main+xml'
+      : undefined);
+    expect(bytes.length).toBeGreaterThanOrEqual(1024 * 1024);
 
-  await loadFileIntoSandbox(page, channel, {
-    filename: 'large-smoke.xlsx',
-    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    bytes,
-  }, 45000);
+    await loadFileIntoSandbox(page, channel, {
+      filename: `large-smoke.${extension}`,
+      mime: isAddin
+        ? 'application/vnd.ms-excel.addin.macroEnabled.12'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      bytes,
+    }, 45000);
 
-  await waitForDeepMatch(frame, {
-    selectors: ['.excel-wrapper canvas', '.e-virt-table-canvas'],
-  }, 45000);
-  await expectSandboxLocalWorker(page, workerInfoPromise);
-});
+    await waitForDeepMatch(frame, {
+      selectors: ['.excel-wrapper canvas', '.e-virt-table-canvas'],
+    }, 45000);
+    await expectSandboxLocalWorker(page, workerInfoPromise);
+  });
+}
 
 async function waitForVisibleEpubContent(frame, expected, timeout = 30000) {
   await frame.waitForFunction(text => {

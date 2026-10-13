@@ -37,6 +37,8 @@ const mimeOverrides = new Map([
   ['.fods', 'application/vnd.oasis.opendocument.spreadsheet-flat-xml'],
   ['.gds', 'application/octet-stream'],
   ['.gpx', 'application/gpx+xml'],
+  ['.hwp', 'application/x-hwp'],
+  ['.hwpx', 'application/hwp+zip'],
   ['.mmd', 'text/vnd.mermaid'],
   ['.oas', 'application/octet-stream'],
   ['.oasis', 'application/octet-stream'],
@@ -98,6 +100,44 @@ const exampleCases = [
     file: 'excel.xls',
     match: { selectors: ['.excel-wrapper canvas', '.e-virt-table-canvas'] },
     visibleText: '总氨产量',
+  },
+  {
+    name: 'Apple Pages',
+    file: 'apple-pages-2015-experimental.pages',
+    match: { selector: '.iwork-scene .iwork-text' },
+    visibleText: 'My hovercraft is full of eels.',
+    expectWorker: true,
+  },
+  {
+    name: 'Apple Numbers',
+    file: 'apple-numbers-09-experimental.numbers',
+    match: { selector: '.iwork-scene .iwork-table' },
+    expectWorker: true,
+  },
+  {
+    name: 'Apple Keynote',
+    file: 'apple-keynote-09-experimental.key',
+    match: { selector: '.iwork-scene .iwork-text' },
+    expectWorker: true,
+  },
+  {
+    name: 'Hangul HWP',
+    file: 'hwplib-table.hwp',
+    match: { selector: '.hangul-page .hangul-table' },
+    expectWorker: true,
+  },
+  {
+    name: 'Hangul HWPX',
+    file: 'hwpxlib-simple-table.hwpx',
+    match: { selector: '.hangul-page .hangul-table' },
+    expectWorker: true,
+  },
+  {
+    name: 'WordPerfect',
+    file: 'wordperfect-wp6.wpd',
+    match: { selector: '.wpd-page p' },
+    expectWorker: true,
+    expectedWorkerEngine: 'libwpd-wasm',
   },
   {
     name: 'PDF',
@@ -289,6 +329,24 @@ test.describe('upstream Flyfish viewer examples', () => {
         ? waitForNextWorkerInfo(page, 90000)
         : null;
 
+      if (exampleCase.expectedWorkerEngine) {
+        await frame.evaluate(() => {
+          const NativeWorker = window.Worker;
+          function ObservedWorker(...args) {
+            const worker = new NativeWorker(...args);
+            worker.addEventListener('message', event => {
+              if (event.data.document?.engine) {
+                window.__testParserEngine = event.data.document.engine;
+              }
+            });
+            return worker;
+          }
+          ObservedWorker.prototype = NativeWorker.prototype;
+          Object.setPrototypeOf(ObservedWorker, NativeWorker);
+          window.Worker = ObservedWorker;
+        });
+      }
+
       await loadFileIntoSandbox(page, channel, await createFileSampleFromPath(filePath, {
         filename: exampleCase.filename,
         mime: mimeForFile(filePath),
@@ -336,6 +394,9 @@ test.describe('upstream Flyfish viewer examples', () => {
         const workerInfo = await workerInfoPromise;
         expect(workerInfo.url).toMatch(/^blob:null\//);
         expect(workerInfo.origin).toBe('null');
+      }
+      if (exampleCase.expectedWorkerEngine) {
+        expect(await frame.evaluate(() => window.__testParserEngine)).toBe(exampleCase.expectedWorkerEngine);
       }
       if (exampleCase.expectWorkerStopped) {
         expect(await page.evaluate(() => window.__fileViewerWorkers.size)).toBe(0);

@@ -158,6 +158,12 @@ test('release packaging is wired to build a fileviewer appstore archive', async 
 
   assert.match(appInfo, /<php min-version="8\.2" max-version="8\.5" \/>/);
   assert.match(appInfo, /<nextcloud min-version="33" max-version="35" \/>/);
+  const [, minimumPhp, maximumPhp] = appInfo.match(/<php min-version="([\d.]+)" max-version="([\d.]+)"/);
+  const [phpMajor, phpMinor] = maximumPhp.split('.').map(Number);
+  assert.equal(composerJson.require.php, `>=${minimumPhp} <${phpMajor}.${phpMinor + 1}`,
+    'Composer must allow every patch release in the supported PHP minor range');
+  assert.equal(composerJson.config.platform.php, minimumPhp,
+    'Composer resolves dependencies for the oldest supported PHP runtime');
   assert.match(appInfo, /<id>fileviewer<\/id>/);
   assert.match(appInfo, /<name>Universal File Viewer<\/name>/);
   assert.match(appInfo, /<licence>AGPL-3\.0-or-later<\/licence>/);

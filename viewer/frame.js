@@ -60,7 +60,10 @@
   var SANDBOX_WORKER_VERSION_QUERY_KEYS = new Set(['file-viewer-cad', 'file-viewer-docx']);
   var PRESENTATION_EXTENSIONS = new Set(['odp', 'otp', 'pot', 'potm', 'potx', 'pps', 'ppsm', 'ppsx', 'ppt', 'pptm', 'pptx']);
   var WORKER_PRESENTATION_EXTENSIONS = new Set(['potm', 'potx', 'ppsm', 'ppsx', 'pptm', 'pptx']);
-  var SPREADSHEET_EXTENSIONS = new Set(['xlsx', 'xltx', 'xlsm', 'xlsb', 'xls', 'xlt', 'xltm', 'csv', 'tsv', 'ods', 'fods', 'numbers']);
+  var SPREADSHEET_EXTENSIONS = new Set(['xlsx', 'xltx', 'xlsm', 'xlsb', 'xls', 'xlt', 'xla', 'xlam', 'xltm', 'csv', 'tsv', 'ods', 'fods']);
+  var IWORK_EXTENSIONS = new Set(['pages', 'numbers', 'key']);
+  var HANGUL_EXTENSIONS = new Set(['hwp', 'hwpx']);
+  var WORDPERFECT_EXTENSIONS = new Set(['wpd', 'wp', 'wp5', 'wp6']);
   var SPREADSHEET_WORKER_THRESHOLD = 1024 * 1024;
   var SPECIALIST_RENDERERS = {
     chm: new Set(['chm']),
@@ -268,6 +271,16 @@
       spreadsheet: {
         workerUrl: resolveAssetUrl('vendor/xlsx/sheet.worker.js'),
       },
+      iwork: {
+        workerUrl: resolveAssetUrl('vendor/iwork/iwork.worker.js'),
+      },
+      hangul: {
+        workerUrl: resolveAssetUrl('vendor/hangul/hangul.worker.js'),
+      },
+      wordPerfect: {
+        workerUrl: resolveAssetUrl('vendor/wordperfect/wordperfect.worker.js'),
+        wasmUrl: resolveAssetUrl('vendor/wordperfect/libwpd.wasm'),
+      },
       cad: {
         wasmPath: resolveAssetUrl('wasm/cad/0.8.2/'),
         workerUrl: resolveAssetUrl('wasm/cad/0.8.2/dwg-worker.js'),
@@ -364,6 +377,16 @@
     var patchedSource = String(source).replace(/\bimport\.meta\.url\b/g, JSON.stringify(sourceUrl));
     if (sourceUrl === resolveAssetUrl('vendor/pdf/pdf.worker.mjs')) {
       patchedSource = patchedSource.replace(/\nexport \{ WorkerMessageHandler \};\s*\n/, '\n');
+    }
+    if (sourceUrl === resolveAssetUrl('vendor/wordperfect/wordperfect.worker.js')) {
+      // libwpd paths use the worker location rather than import.meta.url;
+      // resolve them against the hosted source, not the opaque blob URL.
+      patchedSource = patchedSource.replace(
+        /new URL\((['"])libwpd\.(mjs|wasm)\1,\s*[\w$.]+\.location\.href\)/g,
+        function (match, quote, extension) {
+          return 'new URL(' + JSON.stringify('libwpd.' + extension) + ', ' + JSON.stringify(sourceUrl) + ')';
+        }
+      );
     }
     return patchedSource;
   }
@@ -477,6 +500,15 @@
     if (SPREADSHEET_EXTENSIONS.has(extension) && size >= SPREADSHEET_WORKER_THRESHOLD) {
       return 'vendor/xlsx/sheet.worker.js';
     }
+    if (IWORK_EXTENSIONS.has(extension)) {
+      return 'vendor/iwork/iwork.worker.js';
+    }
+    if (HANGUL_EXTENSIONS.has(extension)) {
+      return 'vendor/hangul/hangul.worker.js';
+    }
+    if (WORDPERFECT_EXTENSIONS.has(extension)) {
+      return 'vendor/wordperfect/wordperfect.worker.js';
+    }
     if (extension === 'dwg') {
       return 'wasm/cad/0.8.2/dwg-worker.js';
     }
@@ -547,7 +579,7 @@
       // Archive members open inside Flyfish without another parent load
       // message. Prepare the fixed parser-worker inventory before an entry
       // can be selected; the synchronous Worker constructor cannot await it.
-      await Promise.all(['docx', 'pdf', 'pptx', 'xlsx', 'dwg', 'step'].map(function (nestedExtension) {
+      await Promise.all(['docx', 'pdf', 'pptx', 'xlsx', 'pages', 'hwp', 'wpd', 'dwg', 'step'].map(function (nestedExtension) {
         return prepareSandboxWorkerPath(resolveWorkerPath(nestedExtension, SPREADSHEET_WORKER_THRESHOLD));
       }));
       return;
@@ -607,6 +639,9 @@
           || preparedUrl.startsWith(resolveAssetUrl('specialists/assets/'))
           || preparedUrl.startsWith(resolveAssetUrl('vendor/chm/'))
           || preparedUrl.startsWith(resolveAssetUrl('vendor/design/'))
+          || preparedUrl.startsWith(resolveAssetUrl('vendor/iwork/'))
+          || preparedUrl.startsWith(resolveAssetUrl('vendor/hangul/'))
+          || preparedUrl.startsWith(resolveAssetUrl('vendor/wordperfect/'))
         ) {
           // These self-contained bundles fail during module-worker startup
           // under an opaque sandbox origin, but are designed to run as classic

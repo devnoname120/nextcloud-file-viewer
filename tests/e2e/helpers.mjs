@@ -883,14 +883,18 @@ export function createMinimalDocxBuffer(text) {
   ]);
 }
 
-export function createMinimalXlsxBuffer(text, paddingSize = 0) {
+export function createMinimalXlsxBuffer(
+  text,
+  paddingSize = 0,
+  workbookContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml',
+) {
   const escapedText = escapeXml(text);
   const files = [
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="${workbookContentType}"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>`],
     ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8"?>

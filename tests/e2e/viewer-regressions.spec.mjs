@@ -69,7 +69,13 @@ test('PowerPoint opened inside an archive renders using an opaque sandbox-local 
   expect(await worker).toMatchObject({ origin: 'null' });
   await expect(frame.locator('#error')).not.toHaveAttribute('data-visible', 'true');
 
-  for (const workerPath of ['wasm/model/occt-worker.js', 'wasm/cad/0.8.2/dwg-worker.js']) {
+  for (const workerPath of [
+    'wasm/model/occt-worker.js',
+    'wasm/cad/0.8.2/dwg-worker.js',
+    'vendor/iwork/iwork.worker.js',
+    'vendor/hangul/hangul.worker.js',
+    'vendor/wordperfect/wordperfect.worker.js',
+  ]) {
     const info = waitForNextWorkerInfo(page);
     await frame.evaluate(url => {
       window.__archiveWorkerProbe = new Worker(url);

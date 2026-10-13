@@ -93,3 +93,22 @@ test('archive worker preparation covers every shipped archive extension', async 
   const archive = DEFAULT_RENDERER_DEFINITIONS.find(definition => definition.id === 'archive');
   assert.deepEqual(Array.from(extensions).sort(), [...archive.extensions].sort());
 });
+
+test('office worker routing covers the current upstream format aliases', async () => {
+  const frameSource = await readFile('viewer/frame.js', 'utf8');
+  const families = {
+    SPREADSHEET_EXTENSIONS: ['spreadsheet-openxml'],
+    IWORK_EXTENSIONS: ['apple-pages', 'apple-numbers', 'apple-keynote'],
+    HANGUL_EXTENSIONS: ['office-hangul'],
+    WORDPERFECT_EXTENSIONS: ['office-wordperfect'],
+  };
+  for (const [setName, rendererIds] of Object.entries(families)) {
+    const declaration = frameSource.match(new RegExp(`var ${setName} = new Set\\((\\[[\\s\\S]*?\\])\\);`));
+    assert.ok(declaration, `${setName} must be declared`);
+    const actual = Array.from(vm.runInNewContext(declaration[1]));
+    const expected = DEFAULT_RENDERER_DEFINITIONS
+      .filter(definition => rendererIds.includes(definition.id))
+      .flatMap(definition => definition.extensions);
+    assert.deepEqual(actual.sort(), expected.sort(), `${setName} must track upstream aliases`);
+  }
+});

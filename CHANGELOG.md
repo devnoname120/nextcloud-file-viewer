@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-10-14
+
+### Changed
+
+- Updated Vue to 3.5.44, Playwright to 1.64.0, and Vite to 8.3.4, with refreshed compatible transitive dependencies.
+- Updated the DOMPurify and KaTeX overrides to 3.4.17 and 0.19.0.
+- Verified the current Flyfish 3.1.2 format inventory: all 273 enabled extensions retain generated settings and MIME mappings; the unshipped experimental BPMN capability remains excluded.
+- Reviewed Nextcloud 33–35 API changes and documented the supported server/PHP ranges; no Nextcloud 35-only API migration is required, so the minimum remains Nextcloud 33.
+
+### Fixed
+
+- Integrated sandbox-local workers for Apple Pages, Numbers, Keynote, Hangul HWP/HWPX, and WordPerfect, including previews opened inside archives.
+- Resolve WordPerfect's structured libwpd parser assets against the hosted worker source instead of its sandbox-local blob URL.
+- Include Excel XLA/XLAM add-ins in large-spreadsheet worker routing and guard office format aliases against upstream inventory changes.
+- Correct Composer's PHP upper bound to allow all PHP 8.5 patch releases while excluding PHP 8.6.
+
 ## [0.5.7] - 2026-10-13
 
 ### Fixed

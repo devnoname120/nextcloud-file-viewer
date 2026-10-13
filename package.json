@@ -1,7 +1,7 @@
 {
   "name": "nextcloud-file-viewer",
   "description": "Universal File Viewer for Nextcloud, powered by Flyfish File Viewer",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "author": "devnoname120",
   "license": "AGPL-3.0-or-later",
   "private": true,
@@ -39,14 +39,14 @@
     "@nextcloud/initial-state": "^3.0.0",
     "@nextcloud/router": "^3.2.0",
     "@nextcloud/vue": "^9.13.1",
-    "vue": "^3.5.43"
+    "vue": "^3.5.44"
   },
   "devDependencies": {
     "@nextcloud/browserslist-config": "^3.1.2",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "mime-types": "^3.0.2",
     "typescript": "^7.0.2",
-    "vite": "^8.3.2"
+    "vite": "^8.3.4"
   },
   "browserslist": [
     "extends @nextcloud/browserslist-config"
@@ -63,9 +63,9 @@
   "overrides": {
     "@xmldom/xmldom": "^0.9.12",
     "adm-zip": "0.6.1",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "fflate": "0.7.5",
-    "katex": "^0.18.10",
+    "katex": "^0.19.0",
     "minimatch": "^10.2.6",
     "uuid": "11.1.1"
   }
