@@ -83,6 +83,7 @@ const FileViewerComponent = {
       frameDocumentLoaded: false,
       frameIsReady: false,
       frameKindMode: null,
+      frameLoadCount: 0,
       frameNavigationArmed: false,
       framePort: null,
       frameProfileSandboxMode: null,
@@ -180,6 +181,7 @@ const FileViewerComponent = {
       }
       this.frameIsReady = false;
       this.frameDocumentLoaded = false;
+      this.frameLoadCount = 0;
       this.frameNavigationArmed = false;
       this.frameRuntimeReady = false;
       this.connectedFrameKind = null;
@@ -207,6 +209,7 @@ const FileViewerComponent = {
       this.frameBlocked = false;
       this.frameKindMode = nextKind;
       this.frameDocumentLoaded = false;
+      this.frameLoadCount = 0;
       this.frameNavigationArmed = false;
       this.frameRuntimeReady = false;
       this.frameProfileSandboxMode = nextSandbox;
@@ -222,6 +225,7 @@ const FileViewerComponent = {
         this.channel = createChannel();
         this.frameBlocked = false;
         this.frameDocumentLoaded = false;
+        this.frameLoadCount = 0;
         this.frameNavigationArmed = false;
         this.frameRuntimeReady = false;
         this.frameKindMode = this.frameKind;
@@ -464,7 +468,13 @@ const FileViewerComponent = {
       });
     },
     onFrameLoad() {
-      if (!this.frameNavigationArmed) {
+      // The frame's own document load can be dispatched either before or after
+      // the `nextcloud-file-viewer:document-loaded` message reaches this
+      // component, so the handshake alone cannot tell it apart from a later
+      // navigation. Count the loads per frame instead: the first one is the
+      // document requested here, and only what follows can be a navigation.
+      this.frameLoadCount += 1;
+      if (this.frameLoadCount <= 1 || !this.frameNavigationArmed) {
         return;
       }
 
