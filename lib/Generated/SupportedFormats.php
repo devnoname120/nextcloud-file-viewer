@@ -1211,6 +1211,13 @@ final class SupportedFormats {
 				'extension' => 'txt',
 			],
 			[
+				'id' => 'format:lrc',
+				'label' => 'LRC lyrics',
+				'category' => 'code',
+				'categoryLabel' => 'Code and text',
+				'extension' => 'lrc',
+			],
+			[
 				'id' => 'format:json',
 				'label' => 'JSON',
 				'category' => 'code',

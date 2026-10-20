@@ -826,6 +826,15 @@ f 1 2 3
     match: uniqueText => ({ text: uniqueText }),
   },
   {
+    name: 'LRC lyrics',
+    sample: uniqueText => ({
+      filename: 'smoke.lrc',
+      mime: 'text/plain',
+      text: `[00:01.00]${uniqueText}\n[00:02.00]Second lyrics line\n`,
+    }),
+    match: uniqueText => ({ text: uniqueText, selector: '.fv-lrc .lrc-cue' }),
+  },
+  {
     name: 'Video MP4',
     sample: () => ({
       filename: 'smoke.mp4',

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import {
   collectDeepText,
+  createMinimalBinaryDocBuffer,
   createMinimalDocxBuffer,
   createMinimalPptxBuffer,
   createMinimalPsdBytes,
@@ -18,6 +19,21 @@ test.skip(!baseURL, 'NEXTCLOUD_BASE_URL is required for the live Nextcloud smoke
 test.describe.configure({ timeout: 90000 });
 
 const liveCases = [
+  {
+    name: 'binary Word content with a DOCX filename',
+    extension: 'docx',
+    mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    createData: uniqueText => createMinimalBinaryDocBuffer(uniqueText),
+    match: uniqueText => ({ text: uniqueText, selector: '.msdoc-zoom-viewer' }),
+  },
+  {
+    name: 'binary Word DOCX member inside a ZIP',
+    extension: 'zip',
+    mime: 'application/zip',
+    createData: uniqueText => createZipBuffer([['legacy.docx', createMinimalBinaryDocBuffer(uniqueText)]]),
+    archiveEntry: 'legacy.docx',
+    match: uniqueText => ({ text: uniqueText, selector: '.msdoc-zoom-viewer' }),
+  },
   {
     name: 'DOCX',
     extension: 'docx',
@@ -62,6 +78,9 @@ for (const liveCase of liveCases) {
 
     await login(page);
     const frame = await openFileById(page, fileId, fileName);
+    if (liveCase.archiveEntry) {
+      await frame.locator('button.archive-entry').filter({ hasText: liveCase.archiveEntry }).click();
+    }
     await waitForDeepMatch(frame, liveCase.match(uniqueText), 60000);
     if (liveCase.forbiddenText) {
       if (liveCase.forbiddenTextStableMs) {

@@ -282,9 +282,9 @@
         wasmUrl: resolveAssetUrl('vendor/wordperfect/libwpd.wasm'),
       },
       cad: {
-        wasmPath: resolveAssetUrl('wasm/cad/0.8.2/'),
-        workerUrl: resolveAssetUrl('wasm/cad/0.8.2/dwg-worker.js'),
-        dwfWasmUrl: resolveAssetUrl('wasm/cad/0.8.2/dwfv-render.wasm'),
+        wasmPath: resolveAssetUrl('wasm/cad/0.8.3/'),
+        workerUrl: resolveAssetUrl('wasm/cad/0.8.3/dwg-worker.js'),
+        dwfWasmUrl: resolveAssetUrl('wasm/cad/0.8.3/dwfv-render.wasm'),
       },
       model: {
         workerUrl: resolveAssetUrl('wasm/model/occt-worker.js'),
@@ -510,7 +510,7 @@
       return 'vendor/wordperfect/wordperfect.worker.js';
     }
     if (extension === 'dwg') {
-      return 'wasm/cad/0.8.2/dwg-worker.js';
+      return 'wasm/cad/0.8.3/dwg-worker.js';
     }
     if (MODEL_WORKER_EXTENSIONS.has(extension)) {
       return 'wasm/model/occt-worker.js';
@@ -635,7 +635,7 @@
           preparedUrl === resolveAssetUrl('vendor/pdf/pdf.worker.mjs')
           || preparedUrl === resolveAssetUrl('vendor/pptx/pptx.worker.js')
           || preparedUrl === resolveAssetUrl('vendor/xlsx/sheet.worker.js')
-          || preparedUrl === resolveAssetUrl('wasm/cad/0.8.2/dwg-worker.js')
+          || preparedUrl === resolveAssetUrl('wasm/cad/0.8.3/dwg-worker.js')
           || preparedUrl.startsWith(resolveAssetUrl('specialists/assets/'))
           || preparedUrl.startsWith(resolveAssetUrl('vendor/chm/'))
           || preparedUrl.startsWith(resolveAssetUrl('vendor/design/'))

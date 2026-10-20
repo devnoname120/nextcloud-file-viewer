@@ -1,7 +1,7 @@
 {
   "name": "nextcloud-file-viewer",
   "description": "Universal File Viewer for Nextcloud, powered by Flyfish File Viewer",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "author": "devnoname120",
   "license": "AGPL-3.0-or-later",
   "private": true,
@@ -28,14 +28,14 @@
     "npm": ">=11.16.0"
   },
   "dependencies": {
-    "@file-viewer/capability-rtf": "^3.1.2",
-    "@file-viewer/core": "^3.1.2",
-    "@file-viewer/renderer-binary": "^3.1.2",
-    "@file-viewer/renderer-chm": "^3.1.2",
-    "@file-viewer/renderer-design": "^3.1.2",
-    "@file-viewer/renderer-dicom": "^3.1.2",
-    "@file-viewer/renderer-signature": "^3.1.2",
-    "@file-viewer/web-full": "^3.1.2",
+    "@file-viewer/capability-rtf": "^3.2.2",
+    "@file-viewer/core": "^3.2.2",
+    "@file-viewer/renderer-binary": "^3.2.2",
+    "@file-viewer/renderer-chm": "^3.2.2",
+    "@file-viewer/renderer-design": "^3.2.2",
+    "@file-viewer/renderer-dicom": "^3.2.2",
+    "@file-viewer/renderer-signature": "^3.2.2",
+    "@file-viewer/web-full": "^3.2.2",
     "@nextcloud/initial-state": "^3.0.0",
     "@nextcloud/router": "^3.2.0",
     "@nextcloud/vue": "^9.13.1",
@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@nextcloud/browserslist-config": "^3.1.2",
-    "@playwright/test": "^1.64.0",
+    "@playwright/test": "^1.64.1",
     "mime-types": "^3.0.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"

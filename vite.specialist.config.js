@@ -34,7 +34,15 @@ export default defineConfig({
       output: {
         entryFileNames: '[name].mjs',
         chunkFileNames: 'chunks/[name]-[hash].mjs',
-        assetFileNames: 'assets/[name]-[hash][extname]',
+        assetFileNames(assetInfo) {
+          // DICOM ships a prebuilt worker as an asset rather than a Vite
+          // worker entry. Keep its sandbox-preparation URL deterministic.
+          const names = assetInfo.names || [assetInfo.name || ''];
+          if (names.some(name => /^decode-worker(?:-[\w-]+)?\.js$/.test(path.basename(name)))) {
+            return 'assets/decode-worker.js';
+          }
+          return 'assets/[name]-[hash][extname]';
+        },
       },
     },
   },

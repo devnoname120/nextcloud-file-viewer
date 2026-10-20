@@ -68,6 +68,7 @@ const MIME_OVERRIDES = new Map([
 		['jsonc', ['application/jsonc']],
 		['jws', ['application/jose']],
 	['kt', ['text/x-kotlin']],
+	['lrc', ['text/plain']],
 		['lzma', ['application/x-lzma']],
 		['macho', ['application/x-mach-binary', 'application/octet-stream']],
 	['mermaid', ['application/vnd.mermaid', 'text/plain']],

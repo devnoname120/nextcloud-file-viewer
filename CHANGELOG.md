@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-10-20
+
+### Changed
+
+- Updated Flyfish core, web-full, RTF capability, and specialist renderers from 3.1.2 to 3.2.2, with refreshed compatible transitive dependencies.
+- Updated Playwright from 1.64.0 to 1.64.1 and the Playground samples to Flyfish 3.2.2.
+- Integrated LRC lyrics preview into the generated format settings and MIME inventory, bringing the enabled extension count to 274.
+
+### Fixed
+
+- Fixed legacy binary Word files named `.docx`, including archive members, by picking up Flyfish's content-based Word parser dispatch (issue #5).
+- Added regressions using identical binary Word bytes with `.doc` and `.docx` filenames, directly and inside ZIPs, plus live Nextcloud coverage.
+- Copy and validate Flyfish's separate CAD/drawing asset packs, use the bundled CAD 0.8.3 runtime, and retain a stable sandbox-local DICOM decode-worker URL.
+- Added packaging checks for required CAD and DICOM worker resources.
+
 ## [0.5.8] - 2026-10-14
 
 ### Changed

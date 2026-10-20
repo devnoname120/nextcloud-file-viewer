@@ -11,6 +11,7 @@ test('every enabled Flyfish extension has a canonical MIME mapping before genera
 	const mappings = createMimeTypeMappings(VIEWER_SUPPORTED_EXTENSIONS);
 
 	assert.equal(mappings.size, VIEWER_SUPPORTED_EXTENSIONS.length);
+	assert.deepEqual(mappings.get('lrc'), ['text/plain']);
 	assert.deepEqual(mappings.get('fb2'), ['application/x-fictionbook+xml', 'text/plain']);
 	assert.deepEqual(mappings.get('hwp'), ['application/x-hwp']);
 	assert.deepEqual(mappings.get('hwpx'), ['application/x-hwpx']);

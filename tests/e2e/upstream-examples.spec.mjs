@@ -66,6 +66,12 @@ const exampleCases = [
     match: { selector: '.msdoc-zoom-viewer' },
   },
   {
+    name: 'Word binary DOC with a DOCX filename',
+    file: 'test.doc',
+    filename: 'legacy.docx',
+    match: { selector: '.msdoc-zoom-viewer' },
+  },
+  {
     name: 'PowerPoint PPTX',
     file: 'ppt.pptx',
     match: { selector: '.pptx-viewer-shell' },
@@ -138,6 +144,12 @@ const exampleCases = [
     match: { selector: '.wpd-page p' },
     expectWorker: true,
     expectedWorkerEngine: 'libwpd-wasm',
+  },
+  {
+    name: 'DICOM',
+    file: 'ct-small.dcm',
+    match: { selector: '.dicom-viewer canvas' },
+    expectWorker: true,
   },
   {
     name: 'PDF',
@@ -349,7 +361,7 @@ test.describe('upstream Flyfish viewer examples', () => {
 
       await loadFileIntoSandbox(page, channel, await createFileSampleFromPath(filePath, {
         filename: exampleCase.filename,
-        mime: mimeForFile(filePath),
+        mime: mimeForFile(exampleCase.filename || filePath),
       }), 90000);
       await waitForDeepMatch(frame, exampleCase.match, 90000);
       if (exampleCase.visibleText) {

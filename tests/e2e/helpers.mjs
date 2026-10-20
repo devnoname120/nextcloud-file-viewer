@@ -854,6 +854,77 @@ ${xrefOffset}
   return [...Buffer.from(pdf, 'latin1')];
 }
 
+export function createMinimalBinaryDocBuffer(text) {
+  // Word 97 FIB + one Unicode CLX piece in a CFB v3 container. Both streams
+  // occupy regular 4096-byte chains, so this fixture needs no mini FAT.
+  const content = `${text}\r`;
+  const encoded = Buffer.from(content, 'utf16le');
+  if (encoded.length > 3072) throw new Error('Binary Word fixture text is too long.');
+  const word = Buffer.alloc(4096);
+  word.writeUInt16LE(0xa5ec, 0); // Word document signature.
+  word.writeUInt16LE(0x00c1, 2); // Word 97.
+  word.writeUInt16LE(0x0409, 6); // English language identifier.
+  word.writeUInt16LE(0x1000, 10); // Unicode text; use 0Table.
+  word.writeUInt32LE(1024, 24); // fcMin.
+  word.writeUInt32LE(1024 + encoded.length, 28); // fcMac.
+  word.writeUInt16LE(14, 32); // FibRgW word count.
+  word.writeUInt16LE(22, 62); // FibRgLw long count.
+  word.writeUInt32LE(word.length, 64); // cbMac.
+  word.writeUInt32LE(content.length, 76); // ccpText.
+  word.writeUInt16LE(93, 152); // FibRgFcLcb97 pair count.
+  word.writeUInt32LE(21, 154 + 33 * 8 + 4); // CLX length; offset is zero.
+  encoded.copy(word, 1024);
+
+  const table = Buffer.alloc(4096);
+  table[0] = 2; // Pcdt marker.
+  table.writeUInt32LE(16, 1); // One-piece PlcPcd length.
+  table.writeUInt32LE(content.length, 9); // End character position.
+  table.writeUInt32LE(1024, 15); // Unicode piece starts at fcMin.
+
+  const header = Buffer.alloc(512);
+  Buffer.from('d0cf11e0a1b11ae1', 'hex').copy(header);
+  header.writeUInt16LE(0x003e, 24);
+  header.writeUInt16LE(3, 26);
+  header.writeUInt16LE(0xfffe, 28);
+  header.writeUInt16LE(9, 30); // 512-byte sectors.
+  header.writeUInt16LE(6, 32);
+  header.writeUInt32LE(1, 44); // One FAT sector.
+  header.writeUInt32LE(1, 48); // Directory sector.
+  header.writeUInt32LE(4096, 56); // Mini-stream cutoff.
+  header.writeUInt32LE(0xfffffffe, 60);
+  header.writeUInt32LE(0xfffffffe, 68);
+  header.fill(0xff, 76);
+  header.writeUInt32LE(0, 76); // FAT is sector zero.
+
+  const fat = Buffer.alloc(512, 0xff);
+  fat.writeUInt32LE(0xfffffffd, 0); // FATSECT.
+  fat.writeUInt32LE(0xfffffffe, 4); // Directory ends here.
+  for (const first of [2, 10]) {
+    for (let sector = first; sector < first + 8; sector += 1) {
+      fat.writeUInt32LE(sector === first + 7 ? 0xfffffffe : sector + 1, sector * 4);
+    }
+  }
+  const directory = Buffer.alloc(512);
+  for (const [index, name, type, sector, size] of [
+    [0, 'Root Entry', 5, 0xfffffffe, 0],
+    [1, 'WordDocument', 2, 2, word.length],
+    [2, '0Table', 2, 10, table.length],
+  ]) {
+    const entry = directory.subarray(index * 128, (index + 1) * 128);
+    const nameBytes = Buffer.from(`${name}\0`, 'utf16le');
+    nameBytes.copy(entry);
+    entry.writeUInt16LE(nameBytes.length, 64);
+    entry[66] = type;
+    entry[67] = index === 2 ? 0 : 1; // Red-black directory tree colors.
+    entry.fill(0xff, 68, 80);
+    entry.writeUInt32LE(sector, 116);
+    entry.writeBigUInt64LE(BigInt(size), 120);
+  }
+  directory.writeUInt32LE(1, 76); // Root child: WordDocument.
+  directory.writeUInt32LE(2, 128 + 68); // Its left child: 0Table.
+  return Buffer.concat([header, fat, directory, word, table]);
+}
+
 export function createMinimalDocxBuffer(text) {
   return createZipBuffer([
     ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8"?>

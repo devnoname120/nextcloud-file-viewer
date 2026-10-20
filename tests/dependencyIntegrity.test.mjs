@@ -72,6 +72,16 @@ async function createDependencyFixture(overrides = {}) {
       `export default { id: ${JSON.stringify(renderer)} };\n`,
     );
   }
+  for (const asset of [
+    'wasm/cad/0.8.3/dwg-worker.js',
+    'wasm/cad/0.8.3/libredwg-web.wasm',
+    'wasm/cad/0.8.3/dwfv-render.wasm',
+    'specialists/assets/decode-worker.js',
+  ]) {
+    const assetPath = join(rootDir, 'viewer/file-viewer', asset);
+    await mkdir(join(assetPath, '..'), { recursive: true });
+    await writeFile(assetPath, 'runtime asset fixture');
+  }
 
   return rootDir;
 }
@@ -166,3 +176,18 @@ test('copied asset verification rejects a missing specialist renderer entry', as
     await rm(rootDir, { recursive: true, force: true });
   }
 });
+
+for (const asset of ['wasm/cad/0.8.3/dwg-worker.js', 'specialists/assets/decode-worker.js']) {
+  test(`copied asset verification rejects a missing ${asset}`, async () => {
+    const rootDir = await createDependencyFixture();
+    try {
+      await rm(join(rootDir, 'viewer/file-viewer', asset));
+      await assert.rejects(
+        verifyDependencies({ rootDir, copiedAssets: true }),
+        error => error.message === `Copied runtime asset is missing or empty: ${asset}`,
+      );
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+}

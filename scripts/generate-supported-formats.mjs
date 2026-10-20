@@ -53,6 +53,7 @@ const FORMAT_LABELS = Object.freeze({
 	js: 'JavaScript',
 	jsonc: 'JSON with comments',
 	jsx: 'JavaScript JSX',
+	lrc: 'LRC lyrics',
 	markdown: 'Markdown',
 	md: 'Markdown',
 	mermaid: 'Mermaid',

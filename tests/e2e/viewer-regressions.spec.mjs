@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  createMinimalEpubBuffer, createMinimalPptxBuffer, createZipBuffer,
+  createMinimalBinaryDocBuffer, createMinimalEpubBuffer, createMinimalPptxBuffer, createZipBuffer,
   mountViewerComponent, mountSandboxedFrame, loadFileIntoSandbox,
   startStaticServer, waitForDeepText, waitForNextWorkerInfo,
 } from './helpers.mjs';
@@ -51,6 +51,32 @@ test('production parent handles both EPUB startup documents before arming naviga
   await page.waitForFunction(() => window.__viewerComponent.frameBlocked);
 });
 
+for (const extension of ['doc', 'docx']) {
+  for (const archived of [false, true]) {
+    test(`renders binary Word content named .${extension}${archived ? ' inside a ZIP' : ''}`, async ({ page }) => {
+      const channel = `binary-word-${extension}-${archived}-${Date.now()}`;
+      const text = 'Legacy binary Word content regression for issue 5';
+      const bytes = createMinimalBinaryDocBuffer(text);
+      expect(bytes.subarray(0, 8).toString('hex')).toBe('d0cf11e0a1b11ae1');
+      const frame = await mountSandboxedFrame(page, server, channel);
+      const filename = `legacy.${extension}`;
+      await loadFileIntoSandbox(page, channel, {
+        filename: archived ? 'binary-word.zip' : filename,
+        mime: archived ? 'application/zip' : extension === 'doc'
+          ? 'application/msword'
+          : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        bytes: archived ? createZipBuffer([[filename, bytes]]) : bytes,
+      });
+      if (archived) {
+        await frame.locator('button.archive-entry').filter({ hasText: filename }).click();
+      }
+      await waitForDeepText(frame, text, 10000);
+      await expect(frame.locator('.msdoc-zoom-viewer')).toBeVisible();
+      await expect(frame.locator('#error')).not.toHaveAttribute('data-visible', 'true');
+    });
+  }
+}
+
 test('PowerPoint opened inside an archive renders using an opaque sandbox-local worker', async ({ page }) => {
   const channel = `archive-member-${Date.now()}`;
   const frame = await mountSandboxedFrame(page, server, channel);
@@ -71,7 +97,7 @@ test('PowerPoint opened inside an archive renders using an opaque sandbox-local 
 
   for (const workerPath of [
     'wasm/model/occt-worker.js',
-    'wasm/cad/0.8.2/dwg-worker.js',
+    'wasm/cad/0.8.3/dwg-worker.js',
     'vendor/iwork/iwork.worker.js',
     'vendor/hangul/hangul.worker.js',
     'vendor/wordperfect/wordperfect.worker.js',

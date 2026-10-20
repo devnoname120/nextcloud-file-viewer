@@ -1198,6 +1198,13 @@ export const SUPPORTED_FORMATS = Object.freeze([
     "extension": "txt"
   },
   {
+    "id": "format:lrc",
+    "label": "LRC lyrics",
+    "category": "code",
+    "categoryLabel": "Code and text",
+    "extension": "lrc"
+  },
+  {
     "id": "format:json",
     "label": "JSON",
     "category": "code",
@@ -2042,6 +2049,7 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "kt",
   "lha",
   "log",
+  "lrc",
   "lzh",
   "lzma",
   "m3u8",

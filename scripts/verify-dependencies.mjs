@@ -13,6 +13,12 @@ const FLYFISH_PACKAGES = [
   '@file-viewer/renderer-signature',
 ];
 const SPECIALIST_RENDERERS = ['binary', 'chm', 'design', 'dicom', 'rtf', 'signature'];
+const REQUIRED_RUNTIME_ASSETS = [
+  'wasm/cad/0.8.3/dwg-worker.js',
+  'wasm/cad/0.8.3/libredwg-web.wasm',
+  'wasm/cad/0.8.3/dwfv-render.wasm',
+  'specialists/assets/decode-worker.js',
+];
 
 function packageLockKey(packageName) {
   return `node_modules/${packageName}`;
@@ -101,6 +107,12 @@ export async function verifyDependencies({ rootDir = process.cwd(), copiedAssets
       assert(
         await isNonEmptyFile(resolve(rootDir, 'viewer/file-viewer/specialists', `${renderer}.mjs`)),
         `Copied specialist renderer entry is missing or empty: ${renderer}`,
+      );
+    }
+    for (const asset of REQUIRED_RUNTIME_ASSETS) {
+      assert(
+        await isNonEmptyFile(resolve(rootDir, 'viewer/file-viewer', asset)),
+        `Copied runtime asset is missing or empty: ${asset}`,
       );
     }
   }
